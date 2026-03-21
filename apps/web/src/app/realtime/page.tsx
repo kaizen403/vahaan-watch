@@ -34,15 +34,21 @@ function parseColorString(colorStr: string) {
   };
 }
 
+const INTERVALS = [
+  { label: "0.5 fps  (slowest — 1 frame / 2s)", ms: 2000 },
+  { label: "1 fps  (1 frame / 1s)", ms: 1000 },
+  { label: "2 fps  (1 frame / 500ms)", ms: 500 },
+  { label: "3 fps  (fastest)", ms: 333 },
+];
+
 const WS_URL =
   process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3002";
-
-const FRAME_INTERVAL_MS = 333;
 
 export default function RealtimePage() {
   const [status, setStatus] = useState<Status>("idle");
   const [detections, setDetections] = useState<Detection[]>([]);
   const [region, setRegion] = useState("EUR");
+  const [intervalMs, setIntervalMs] = useState(1000);
   const [errorMsg, setErrorMsg] = useState("");
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -109,7 +115,7 @@ export default function RealtimePage() {
         const msg = JSON.parse(e.data as string);
         if (msg.type === "ready") {
           setStatus("scanning");
-          startFrameCapture(ws);
+          startFrameCapture(ws, intervalMs);
         } else if (msg.type === "detection") {
           setDetections((prev) => [msg.data as Detection, ...prev].slice(0, 20));
         } else if (msg.type === "error") {
@@ -137,7 +143,7 @@ export default function RealtimePage() {
     };
   }
 
-  function startFrameCapture(ws: WebSocket) {
+  function startFrameCapture(ws: WebSocket, frameIntervalMs: number) {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     if (!canvas || !video) return;
@@ -162,7 +168,7 @@ export default function RealtimePage() {
         "image/jpeg",
         0.7
       );
-    }, FRAME_INTERVAL_MS);
+    }, frameIntervalMs);
   }
 
   return (
@@ -193,7 +199,7 @@ export default function RealtimePage() {
         <div className="space-y-5">
           <div className="flex items-center gap-3">
             <label htmlFor="region-rt" className="text-sm text-gray-400 whitespace-nowrap">
-              Detection region
+              Region
             </label>
             <select
               id="region-rt"
@@ -205,6 +211,25 @@ export default function RealtimePage() {
               {REGIONS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <label htmlFor="interval-rt" className="text-sm text-gray-400 whitespace-nowrap">
+              Scan rate
+            </label>
+            <select
+              id="interval-rt"
+              value={intervalMs}
+              onChange={(e) => setIntervalMs(Number(e.target.value))}
+              disabled={status === "scanning" || status === "connecting"}
+              className="flex-1 rounded-lg border border-gray-700 bg-black px-3 py-2 text-sm text-white focus:border-white focus:outline-none disabled:opacity-50"
+            >
+              {INTERVALS.map((opt) => (
+                <option key={opt.ms} value={opt.ms}>
+                  {opt.label}
                 </option>
               ))}
             </select>
