@@ -90,7 +90,7 @@ export default function RealtimePage() {
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: "environment" } },
       });
     } catch {
       setErrorMsg("Camera access denied. Please allow camera permissions.");
