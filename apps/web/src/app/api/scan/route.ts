@@ -3,12 +3,13 @@ import { spawn } from "child_process";
 import { writeFile, unlink } from "fs/promises";
 import path from "path";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const BINARY_PATH =
   process.env.BINARY_PATH ||
   "/home/kaizen/sibi/adarecog/sdk_samples/samples/C++/build/05_cloud/cpp_sample_05_cloud";
 const API_KEY = process.env.CARMEN_API_KEY ?? "";
+const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 
 interface Detection {
   timestamp: string;
@@ -69,8 +70,28 @@ function parseDetectionBlocks(output: string): Detection[] {
   return detections;
 }
 
+function transcodeToH264(inputPath: string, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(FFMPEG, [
+      "-y", "-i", inputPath,
+      "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+      "-an",
+      "-movflags", "+faststart",
+      outputPath,
+    ]);
+    let stderr = "";
+    proc.stderr.on("data", (c: Buffer) => { stderr += c.toString(); });
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg failed (${code}): ${stderr.slice(-300)}`));
+    });
+    proc.on("error", reject);
+  });
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
+  let rawPath: string | null = null;
   let videoPath: string | null = null;
 
   try {
@@ -85,21 +106,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    videoPath = path.join("/tmp", `anpr_upload_${Date.now()}.mp4`);
+    const ts = Date.now();
+    rawPath = path.join("/tmp", `anpr_raw_${ts}.mp4`);
+    videoPath = path.join("/tmp", `anpr_h264_${ts}.mp4`);
+
     const videoBytes = await videoFile.arrayBuffer();
     const videoBuf = Buffer.from(videoBytes);
-    console.log(
-      `[scan] Received file: ${videoFile.name}, size: ${videoBuf.length} bytes (${(videoBuf.length / 1024 / 1024).toFixed(2)} MB)`,
-    );
-    await writeFile(videoPath, videoBuf);
+    console.log(`[scan] Received: ${videoFile.name} ${(videoBuf.length / 1024 / 1024).toFixed(1)} MB`);
+    await writeFile(rawPath, videoBuf);
 
-    const args = [region, `file:${videoPath}`, API_KEY];
+    console.log("[scan] Transcoding to H.264...");
+    try {
+      await transcodeToH264(rawPath, videoPath);
+      console.log("[scan] Transcode OK");
+    } catch (err) {
+      console.warn("[scan] Transcode failed, trying raw:", err);
+      videoPath = rawPath;
+      rawPath = null;
+    }
+
+    const fileUrl = `file://${videoPath}`;
+    console.log(`[scan] Invoking binary: ${region} ${fileUrl}`);
 
     const result = await new Promise<{
       detections: Detection[];
       framesProcessed: number;
     }>((resolve, reject) => {
-      const proc = spawn(BINARY_PATH, args);
+      const proc = spawn(BINARY_PATH, [region, fileUrl, API_KEY]);
 
       let stdoutData = "";
       let stderrData = "";
@@ -108,9 +141,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const timeout = setTimeout(() => {
         if (!finished) {
           proc.kill("SIGKILL");
-          reject(new Error("Processing timed out after 120 seconds"));
+          reject(new Error("Processing timed out after 240 seconds"));
         }
-      }, 120_000);
+      }, 240_000);
 
       proc.stdout.on("data", (chunk: Buffer) => {
         const text = chunk.toString();
@@ -133,24 +166,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         clearTimeout(timeout);
         finished = true;
 
-        console.log(`[scan] Binary exited with code ${code}`);
-        console.log(`[scan] stdout length: ${stdoutData.length}`);
-        if (stderrData)
-          console.log(`[scan] stderr: ${stderrData.slice(0, 1000)}`);
+        console.log(`[scan] Binary exited ${code}, stdout: ${stdoutData.length}b`);
+        if (stderrData) console.log(`[scan] stderr: ${stderrData.slice(0, 800)}`);
+        if (stdoutData) console.log(`[scan] stdout preview: ${stdoutData.slice(0, 300)}`);
 
         const framesMatch = stdoutData.match(/frames?[:\s]+(\d+)/i);
         const framesProcessed = framesMatch ? parseInt(framesMatch[1], 10) : 0;
 
-        if (
-          code !== 0 &&
-          code !== null &&
-          !stdoutData.includes("Plate text:")
-        ) {
-          reject(
-            new Error(
-              `Binary exited with code ${code}. Stderr: ${stderrData.slice(0, 500)}`,
-            ),
-          );
+        if (code !== 0 && code !== null && !stdoutData.includes("Plate text:")) {
+          reject(new Error(`Binary exited with code ${code}. Stderr: ${stderrData.slice(0, 500)}`));
         } else {
           const detections = parseDetectionBlocks(stdoutData);
           resolve({ detections, framesProcessed });
@@ -178,10 +202,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 500 },
     );
   } finally {
-    if (videoPath) {
-      try {
-        await unlink(videoPath);
-      } catch {}
+    for (const p of [rawPath, videoPath]) {
+      if (p) {
+        try { await unlink(p); } catch {}
+      }
     }
   }
 }
