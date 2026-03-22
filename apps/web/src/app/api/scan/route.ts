@@ -141,9 +141,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const timeout = setTimeout(() => {
         if (!finished) {
           proc.kill("SIGKILL");
-          reject(new Error("Processing timed out after 240 seconds"));
+          reject(new Error("Processing timed out after 540 seconds"));
         }
-      }, 240_000);
+      }, 540_000);
 
       proc.stdout.on("data", (chunk: Buffer) => {
         const text = chunk.toString();

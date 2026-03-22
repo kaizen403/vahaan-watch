@@ -175,7 +175,7 @@ export default function HomePage() {
                 Processing video…
               </p>
               <p className="mt-1 text-sm text-gray-500">
-                This may take up to 60 seconds
+                This may take 2–5 minutes depending on video length
               </p>
             </div>
           </div>
