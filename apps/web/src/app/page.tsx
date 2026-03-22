@@ -24,13 +24,9 @@ interface ScanResult {
 type AppState = "idle" | "scanning" | "results" | "error";
 
 const REGIONS = [
-  { value: "EUR", label: "Europe (EUR)" },
-  { value: "GEN", label: "General — use for India (GEN)" },
-  { value: "USA", label: "United States (USA)" },
+  { value: "EUR", label: "Europe / India (EUR)" },
   { value: "NAM", label: "North America (NAM)" },
   { value: "AFR", label: "Africa (AFR)" },
-  { value: "ASI", label: "Asia (ASI)" },
-  { value: "OCE", label: "Oceania (OCE)" },
 ];
 
 interface ParsedColor {
@@ -68,7 +64,7 @@ function getCategoryBadgeClass(category: string): string {
 export default function HomePage() {
   const [appState, setAppState] = useState<AppState>("idle");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [region, setRegion] = useState("GEN");
+  const [region, setRegion] = useState("EUR");
   const [isDragging, setIsDragging] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
