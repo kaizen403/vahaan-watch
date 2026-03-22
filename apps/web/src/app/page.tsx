@@ -112,7 +112,14 @@ export default function HomePage() {
         body: formData,
       });
 
-      const data: ScanResult = await response.json();
+      let data: ScanResult;
+      try {
+        data = await response.json();
+      } catch {
+        setErrorMessage(`Server error (HTTP ${response.status}) — try a shorter video or hard-refresh the page`);
+        setAppState("error");
+        return;
+      }
 
       if (!data.success) {
         setErrorMessage(data.error ?? "Scan failed");
@@ -123,7 +130,7 @@ export default function HomePage() {
       setResult(data);
       setAppState("results");
     } catch {
-      setErrorMessage("Network error — could not reach the scanner API");
+      setErrorMessage("Could not reach the server — check your connection and try again");
       setAppState("error");
     }
   }
