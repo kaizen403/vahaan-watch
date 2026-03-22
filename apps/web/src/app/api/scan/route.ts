@@ -74,6 +74,7 @@ function transcodeToH264(inputPath: string, outputPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(FFMPEG, [
       "-y", "-i", inputPath,
+      "-r", "5",
       "-c:v", "libx264", "-preset", "fast", "-crf", "23",
       "-an",
       "-movflags", "+faststart",
