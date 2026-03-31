@@ -4,10 +4,11 @@ const { writeFile, mkdir, rm } = require("fs/promises");
 const path = require("path");
 const os = require("os");
 const {
+  connectDb,
   getBlacklistCollection,
   getDetectionsCollection,
   closeDb,
-  DB_NAME,
+  DB_SCHEMA,
   BLACKLIST_COLLECTION,
   DETECTIONS_COLLECTION,
 } = require("./lib/db");
@@ -33,15 +34,17 @@ const TMP_DIR = path.join(os.tmpdir(), "anpr_rt");
 const SEPARATOR = "------------------------------------------------------";
 let blacklistCollection = null;
 let detectionsCollection = null;
+let db = null;
 
 async function initBlacklistDb() {
+  db = await connectDb();
   blacklistCollection = await getBlacklistCollection();
   detectionsCollection = await getDetectionsCollection();
-  const seedResult = await seedDummyBlacklist(blacklistCollection);
+  const seedResult = await seedDummyBlacklist(db, blacklistCollection);
   console.log(
-    `[db] connected ${DB_NAME}.${BLACKLIST_COLLECTION} (seed inserted=${seedResult.inserted}, skipped=${seedResult.skipped})`
+    `[db] connected ${DB_SCHEMA}.${BLACKLIST_COLLECTION} (seed inserted=${seedResult.inserted}, skipped=${seedResult.skipped})`
   );
-  console.log(`[db] connected ${DB_NAME}.${DETECTIONS_COLLECTION}`);
+  console.log(`[db] connected ${DB_SCHEMA}.${DETECTIONS_COLLECTION}`);
 }
 
 function parseBlock(block) {
@@ -136,7 +139,9 @@ const wss = new WebSocketServer({ port: WS_PORT });
 console.log(`Carmen ANPR WS server (batch mode) → ws://localhost:${WS_PORT}`);
 initBlacklistDb().catch((err) => {
   console.error(`[db] failed to initialize blacklist DB: ${err.message}`);
+  db = null;
   blacklistCollection = null;
+  detectionsCollection = null;
 });
 
 process.on("SIGINT", async () => {
@@ -187,7 +192,7 @@ wss.on("connection", (ws) => {
         console.log(`  session=${sessionId} region=${region}`);
         ws.send(JSON.stringify({ type: "ready" }));
       } else if (msg.type === "getBlacklist") {
-        if (!blacklistCollection) {
+        if (!db || !blacklistCollection) {
           ws.send(JSON.stringify({
             type: "blacklist",
             success: false,
@@ -197,7 +202,7 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        const data = await getBlacklistedPlates(blacklistCollection, 100);
+        const data = await getBlacklistedPlates(db, blacklistCollection, 100);
         ws.send(JSON.stringify({
           type: "blacklist",
           success: true,
@@ -205,7 +210,7 @@ wss.on("connection", (ws) => {
           data,
         }));
       } else if (msg.type === "getRecentDetections") {
-        if (!detectionsCollection) {
+        if (!db || !detectionsCollection) {
           ws.send(JSON.stringify({
             type: "recentDetections",
             success: false,
@@ -216,7 +221,7 @@ wss.on("connection", (ws) => {
         }
 
         const limit = Number(msg.limit) > 0 ? Math.min(Number(msg.limit), 500) : 100;
-        const data = await getRecentDetections(detectionsCollection, limit);
+        const data = await getRecentDetections(db, detectionsCollection, limit);
         ws.send(JSON.stringify({
           type: "recentDetections",
           success: true,
@@ -258,17 +263,17 @@ wss.on("connection", (ws) => {
             record: null,
           };
 
-          if (blacklistCollection) {
+          if (db && blacklistCollection) {
             try {
-              blacklist = await isPlateBlacklisted(blacklistCollection, det.plate);
+              blacklist = await isPlateBlacklisted(db, blacklistCollection, det.plate);
             } catch (err) {
               console.error(`  blacklist check failed: ${err.message}`);
             }
           }
 
-          if (detectionsCollection) {
+          if (db && detectionsCollection) {
             try {
-              await saveDetection(detectionsCollection, det, {
+              await saveDetection(db, detectionsCollection, det, {
                 sessionId,
                 batchNum: num,
                 region,

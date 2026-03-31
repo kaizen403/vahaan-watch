@@ -6,7 +6,7 @@
     "dev": "node --env-file=.env server.js"
   },
   "dependencies": {
-    "mongodb": "^6.17.0",
+    "pg": "^8.16.3",
     "ws": "^8.18.0"
   }
 }
