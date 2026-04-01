@@ -7,12 +7,20 @@ apps/web/.next/
 # turbo
 .turbo/
 
-# sdk binaries and installers
+# sdk (vendor binaries, samples, docs)
 sdk_linux/
 sdk_extracted/
-sdk_samples/samples/C++/build/
+sdk_samples/
 anpr_engine/
 carmen_video_sdk-*.zip
+Carmen_User_Manual.pdf
+Carmen_User_Manual.txt
+
+# standalone demos (not part of monorepo)
+js-demo/
+
+# deploy scripts
+deploy/
 
 # test videos and images
 *.mp4
@@ -20,9 +28,8 @@ carmen_video_sdk-*.zip
 *.jpeg
 *.png
 
-# sdk docs (large)
-Carmen_User_Manual.pdf
-Carmen_User_Manual.txt
+# plan (local only)
+PLAN.md
 
 # env
 .env
@@ -35,6 +42,12 @@ Thumbs.db
 # build output
 dist/
 *.tsbuildinfo
+
+# stale lockfiles (project uses pnpm)
+apps/web/package-lock.json
+
+# tesseract training data (download, don't commit)
+*.traineddata
 
 # workstation agent local data
 apps/workstation-agent/data/
