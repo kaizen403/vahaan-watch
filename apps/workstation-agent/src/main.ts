@@ -383,7 +383,7 @@ export async function main(): Promise<void> {
   const runtimeModules = await loadRuntimeModules();
   const hitlistDownloader = new HitlistDownloader(api, db, process.env.HITLIST_ID?.trim() || null);
   const plateMatcher = new PlateMatcher(db);
-  const outboxFlusher = new OutboxFlusher(api, db);
+  const outboxFlusher = new OutboxFlusher(api, db, config);
   const heartbeatService = new HeartbeatService(api, db, config);
   const ttsAnnouncer = new TtsAnnouncer(config.ttsEnabled);
   const tabletBridge = new TabletBridge(config);

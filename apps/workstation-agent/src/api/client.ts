@@ -101,7 +101,7 @@ export class CentralApiClient {
   }
 
   private async request<T>(path: string, options: RequestOptions): Promise<T> {
-    const attempts = 3;
+    const attempts = 5;
 
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
@@ -118,7 +118,9 @@ export class CentralApiClient {
           throw error;
         }
 
-        await sleep(250 * 2 ** attempt);
+        const delay = Math.min(500 * 2 ** attempt, 30_000);
+        const jitter = Math.floor(Math.random() * 1000);
+        await sleep(delay + jitter);
       }
     }
 
@@ -127,7 +129,7 @@ export class CentralApiClient {
 
   private async fetchWithTimeout(path: string, options: RequestOptions): Promise<Response> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10_000);
+    const timeout = setTimeout(() => controller.abort(), 15_000);
 
     try {
       const headers = new Headers({

@@ -31,9 +31,8 @@ export class HeartbeatService {
   public async sendHeartbeat(): Promise<void> {
     const memory = process.memoryUsage();
     const uptime = process.uptime();
-    const pendingDetections = this.db.getUnsyncedDetections(1).length;
-    const pendingMatchEvents = this.db.getUnsyncedMatchEvents(1).length;
-    const pendingOutbox = pendingDetections + pendingMatchEvents;
+    const queueDepth = this.db.getQueueDepth();
+    const pendingOutbox = queueDepth.pendingDetections + queueDepth.pendingMatchEvents;
     const health = this.getHealthReport();
     const now = new Date().toISOString();
     const payload: HeartbeatPayload = {
@@ -44,6 +43,10 @@ export class HeartbeatService {
         deviceName: this.config.deviceName,
         uptimeSeconds: uptime,
         pendingOutbox,
+        pendingDetections: queueDepth.pendingDetections,
+        pendingMatchEvents: queueDepth.pendingMatchEvents,
+        failedDetections: queueDepth.failedDetections,
+        failedMatchEvents: queueDepth.failedMatchEvents,
         memory: {
           rss: memory.rss,
           heapTotal: memory.heapTotal,
@@ -63,8 +66,10 @@ export class HeartbeatService {
         lastCheckedAt: now,
       });
       logger.debug("heartbeat sent", {
-        pendingDetections,
-        pendingMatchEvents,
+        pendingDetections: queueDepth.pendingDetections,
+        pendingMatchEvents: queueDepth.pendingMatchEvents,
+        failedDetections: queueDepth.failedDetections,
+        failedMatchEvents: queueDepth.failedMatchEvents,
         rss: memory.rss,
       });
     } catch (error) {
@@ -81,15 +86,14 @@ export class HeartbeatService {
 
   public getHealthReport(): HealthReport {
     const components = this.db.getHealthSnapshots();
-    const pendingDetections = this.db.getUnsyncedDetections(1).length;
-    const pendingMatchEvents = this.db.getUnsyncedMatchEvents(1).length;
+    const queueDepth = this.db.getQueueDepth();
 
     return {
       overall: getOverallStatus(components),
       components,
       uptime: process.uptime(),
-      pendingDetections,
-      pendingMatchEvents,
+      pendingDetections: queueDepth.pendingDetections,
+      pendingMatchEvents: queueDepth.pendingMatchEvents,
     };
   }
 }

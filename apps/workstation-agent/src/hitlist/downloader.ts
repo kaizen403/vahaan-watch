@@ -56,6 +56,17 @@ export class HitlistDownloader {
           continue;
         }
 
+        if (
+          typeof sinceVersion === "number" &&
+          response.version.versionNumber > sinceVersion + 1
+        ) {
+          logger.warn("hitlist version gap detected, full re-sync applied", {
+            hitlistId,
+            expectedVersion: sinceVersion + 1,
+            receivedVersion: response.version.versionNumber,
+          });
+        }
+
         const syncedAt = new Date().toISOString();
         const removed = this.db.clearHitlistEntries(hitlistId);
 
@@ -85,6 +96,22 @@ export class HitlistDownloader {
     }
 
     return summary;
+  }
+
+  public async forceResync(hitlistIds: string[]): Promise<HitlistSyncSummary> {
+    const cursorState = this.readCursorState();
+
+    for (const hitlistId of hitlistIds) {
+      delete cursorState[hitlistId];
+      this.db.clearHitlistEntries(hitlistId);
+    }
+
+    this.persistCursorState(cursorState);
+    logger.info("hitlist cursors cleared for force resync", {
+      hitlistIds: hitlistIds.join(", "),
+    });
+
+    return this.syncAll(hitlistIds);
   }
 
   private readCursorState(): HitlistCursorState {

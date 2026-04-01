@@ -3,9 +3,11 @@ import { DbClient } from "../db/client.js";
 import { createLogger } from "../logger.js";
 import type {
   DetectionUploadRequest,
+  FlushSummary,
   MatchEventUploadRequest,
   PendingDetection,
   PendingMatchEvent,
+  WorkstationConfig,
 } from "../types.js";
 
 const logger = createLogger("sync-outbox");
@@ -39,56 +41,132 @@ function toMatchEventUploadRequest(matchEvent: PendingMatchEvent): MatchEventUpl
   };
 }
 
+function computeNextRetryAt(
+  attempts: number,
+  baseDelayMs: number,
+  maxDelayMs: number,
+): string {
+  const delay = Math.min(baseDelayMs * 2 ** attempts, maxDelayMs);
+  const jitter = Math.floor(Math.random() * 2000);
+  return new Date(Date.now() + delay + jitter).toISOString();
+}
+
 export class OutboxFlusher {
+  private readonly maxRetries: number;
+  private readonly baseDelayMs: number;
+  private readonly maxDelayMs: number;
+
   public constructor(
     private readonly api: CentralApiClient,
     private readonly db: DbClient,
-  ) {}
+    config?: Pick<WorkstationConfig, "outboxMaxRetries" | "outboxRetryBaseDelayMs" | "outboxRetryMaxDelayMs">,
+  ) {
+    this.maxRetries = config?.outboxMaxRetries ?? 10;
+    this.baseDelayMs = config?.outboxRetryBaseDelayMs ?? 5000;
+    this.maxDelayMs = config?.outboxRetryMaxDelayMs ?? 300000;
+  }
 
-  public async flush(batchSize: number): Promise<{
-    detectionsSynced: number;
-    matchEventsSynced: number;
-    errors: number;
-  }> {
-    const summary = {
-      detectionsSynced: 0,
+  public async flush(batchSize: number): Promise<FlushSummary> {
+    const summary: FlushSummary = {
       matchEventsSynced: 0,
+      detectionsSynced: 0,
+      matchEventsRetried: 0,
+      detectionsRetried: 0,
+      matchEventsFailed: 0,
+      detectionsFailed: 0,
       errors: 0,
     };
 
-    const detections = this.db.getUnsyncedDetections(batchSize);
-    for (const detection of detections) {
-      try {
-        await this.api.uploadDetection(toDetectionUploadRequest(detection));
-        this.db.markDetectionSynced(detection.id, new Date().toISOString());
-        summary.detectionsSynced += 1;
-      } catch (error) {
-        summary.errors += 1;
-        logger.error("detection upload failed", {
-          detectionId: detection.id,
-          externalEventId: detection.externalEventId,
-          error: toErrorMessage(error),
-        });
-      }
+    const now = new Date().toISOString();
+
+    const matchEvents = this.db.getRetryableMatchEvents(batchSize, now);
+    for (const matchEvent of matchEvents) {
+      await this.syncMatchEvent(matchEvent, summary);
     }
 
-    const matchEvents = this.db.getUnsyncedMatchEvents(batchSize);
-    for (const matchEvent of matchEvents) {
-      try {
-        await this.api.uploadMatchEvent(toMatchEventUploadRequest(matchEvent));
-        this.db.markMatchEventSynced(matchEvent.id, new Date().toISOString());
-        summary.matchEventsSynced += 1;
-      } catch (error) {
-        summary.errors += 1;
-        logger.error("match event upload failed", {
+    const detections = this.db.getRetryableDetections(batchSize, now);
+    for (const detection of detections) {
+      await this.syncDetection(detection, summary);
+    }
+
+    if (summary.matchEventsSynced > 0 || summary.detectionsSynced > 0 || summary.errors > 0) {
+      logger.debug("outbox flush completed", { ...summary });
+    }
+
+    return summary;
+  }
+
+  private async syncMatchEvent(
+    matchEvent: PendingMatchEvent,
+    summary: FlushSummary,
+  ): Promise<void> {
+    const attempts = (matchEvent.attempts ?? 0) + 1;
+
+    try {
+      await this.api.uploadMatchEvent(toMatchEventUploadRequest(matchEvent));
+      this.db.markMatchEventSynced(matchEvent.id, new Date().toISOString());
+      summary.matchEventsSynced += 1;
+    } catch (error) {
+      summary.errors += 1;
+
+      if (attempts >= this.maxRetries) {
+        this.db.recordSyncAttempt("pending_match_events", matchEvent.id, attempts, null, true);
+        summary.matchEventsFailed += 1;
+        logger.warn("match event dead-lettered after max retries", {
           matchEventId: matchEvent.id,
           externalEventId: matchEvent.externalEventId,
+          attempts,
+          error: toErrorMessage(error),
+        });
+      } else {
+        const nextRetryAt = computeNextRetryAt(attempts, this.baseDelayMs, this.maxDelayMs);
+        this.db.recordSyncAttempt("pending_match_events", matchEvent.id, attempts, nextRetryAt, false);
+        summary.matchEventsRetried += 1;
+        logger.error("match event upload failed, will retry", {
+          matchEventId: matchEvent.id,
+          externalEventId: matchEvent.externalEventId,
+          attempts,
+          nextRetryAt,
           error: toErrorMessage(error),
         });
       }
     }
+  }
 
-    logger.debug("outbox flush completed", summary);
-    return summary;
+  private async syncDetection(
+    detection: PendingDetection,
+    summary: FlushSummary,
+  ): Promise<void> {
+    const attempts = (detection.attempts ?? 0) + 1;
+
+    try {
+      await this.api.uploadDetection(toDetectionUploadRequest(detection));
+      this.db.markDetectionSynced(detection.id, new Date().toISOString());
+      summary.detectionsSynced += 1;
+    } catch (error) {
+      summary.errors += 1;
+
+      if (attempts >= this.maxRetries) {
+        this.db.recordSyncAttempt("pending_detections", detection.id, attempts, null, true);
+        summary.detectionsFailed += 1;
+        logger.warn("detection dead-lettered after max retries", {
+          detectionId: detection.id,
+          externalEventId: detection.externalEventId,
+          attempts,
+          error: toErrorMessage(error),
+        });
+      } else {
+        const nextRetryAt = computeNextRetryAt(attempts, this.baseDelayMs, this.maxDelayMs);
+        this.db.recordSyncAttempt("pending_detections", detection.id, attempts, nextRetryAt, false);
+        summary.detectionsRetried += 1;
+        logger.error("detection upload failed, will retry", {
+          detectionId: detection.id,
+          externalEventId: detection.externalEventId,
+          attempts,
+          nextRetryAt,
+          error: toErrorMessage(error),
+        });
+      }
+    }
   }
 }

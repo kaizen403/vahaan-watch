@@ -1,4 +1,12 @@
+import Database from "better-sqlite3";
+
 export const SCHEMA_DDL = [
+  `
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      appliedAt TEXT NOT NULL
+    );
+  `,
   `
     CREATE TABLE IF NOT EXISTS local_hitlist_entries (
       id TEXT PRIMARY KEY,
@@ -117,3 +125,97 @@ export const SCHEMA_DDL = [
       ON sync_state(updatedAt);
   `,
 ] as const;
+
+interface SchemaMigration {
+  id: string;
+  statements: readonly string[];
+}
+
+const SCHEMA_MIGRATIONS: readonly SchemaMigration[] = [
+  {
+    id: "20260401_pending_detections_attempts",
+    statements: [
+      `ALTER TABLE pending_detections ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+  {
+    id: "20260401_pending_detections_last_attempt_at",
+    statements: [
+      `ALTER TABLE pending_detections ADD COLUMN lastAttemptAt TEXT`,
+    ],
+  },
+  {
+    id: "20260401_pending_detections_next_retry_at",
+    statements: [
+      `ALTER TABLE pending_detections ADD COLUMN nextRetryAt TEXT`,
+    ],
+  },
+  {
+    id: "20260401_pending_detections_failed",
+    statements: [
+      `ALTER TABLE pending_detections ADD COLUMN failed INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+  {
+    id: "20260401_pending_match_events_attempts",
+    statements: [
+      `ALTER TABLE pending_match_events ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+  {
+    id: "20260401_pending_match_events_last_attempt_at",
+    statements: [
+      `ALTER TABLE pending_match_events ADD COLUMN lastAttemptAt TEXT`,
+    ],
+  },
+  {
+    id: "20260401_pending_match_events_next_retry_at",
+    statements: [
+      `ALTER TABLE pending_match_events ADD COLUMN nextRetryAt TEXT`,
+    ],
+  },
+  {
+    id: "20260401_pending_match_events_failed",
+    statements: [
+      `ALTER TABLE pending_match_events ADD COLUMN failed INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
+];
+
+export function applySchemaMigrations(db: Database.Database): void {
+  const appliedMigrations = new Set(
+    (db
+      .prepare(
+        `
+          SELECT id
+          FROM schema_migrations
+          ORDER BY id ASC
+        `,
+      )
+      .all() as Array<{ id: string }>)
+      .map((migration) => migration.id),
+  );
+
+  const applyMigration = db.transaction((migration: SchemaMigration) => {
+    for (const statement of migration.statements) {
+      db.exec(statement);
+    }
+
+    db.prepare(
+      `
+        INSERT INTO schema_migrations (
+          id,
+          appliedAt
+        ) VALUES (?, ?)
+      `,
+    ).run(migration.id, new Date().toISOString());
+  });
+
+  for (const migration of SCHEMA_MIGRATIONS) {
+    if (appliedMigrations.has(migration.id)) {
+      continue;
+    }
+
+    applyMigration(migration);
+  }
+}

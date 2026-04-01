@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { SCHEMA_DDL } from "./schema.js";
+import { applySchemaMigrations, SCHEMA_DDL } from "./schema.js";
 import type {
   ComponentHealth,
   LocalHitlistEntry,
@@ -22,6 +22,8 @@ export class DbClient {
     for (const ddl of SCHEMA_DDL) {
       this.db.exec(ddl);
     }
+
+    applySchemaMigrations(this.db);
   }
 
   public close(): void {
@@ -91,11 +93,29 @@ export class DbClient {
         `
           UPDATE pending_detections
           SET synced = 1,
-              syncedAt = ?
+              syncedAt = ?,
+              nextRetryAt = NULL,
+              failed = 0
           WHERE id = ?
         `,
       )
       .run(syncedAt, id);
+  }
+
+  public getRetryableDetections(limit: number, now: string): PendingDetection[] {
+    return this.db
+      .prepare(
+        `
+          SELECT *
+          FROM pending_detections
+          WHERE synced = 0
+            AND failed = 0
+            AND (nextRetryAt IS NULL OR nextRetryAt <= ?)
+          ORDER BY createdAt ASC
+          LIMIT ?
+        `,
+      )
+      .all(now, limit) as PendingDetection[];
   }
 
   public insertMatchEvent(matchEvent: PendingMatchEvent): void {
@@ -149,11 +169,115 @@ export class DbClient {
         `
           UPDATE pending_match_events
           SET synced = 1,
-              syncedAt = ?
+              syncedAt = ?,
+              nextRetryAt = NULL,
+              failed = 0
           WHERE id = ?
         `,
       )
       .run(syncedAt, id);
+  }
+
+  public getRetryableMatchEvents(limit: number, now: string): PendingMatchEvent[] {
+    return this.db
+      .prepare(
+        `
+          SELECT *
+          FROM pending_match_events
+          WHERE synced = 0
+            AND failed = 0
+            AND (nextRetryAt IS NULL OR nextRetryAt <= ?)
+          ORDER BY createdAt ASC
+          LIMIT ?
+        `,
+      )
+      .all(now, limit) as PendingMatchEvent[];
+  }
+
+  public recordSyncAttempt(
+    table: "pending_detections" | "pending_match_events",
+    id: string,
+    attempts: number,
+    nextRetryAt: string | null,
+    failed: boolean,
+  ): void {
+    const resolvedTable = this.resolvePendingTable(table);
+
+    this.db
+      .prepare(
+        `
+          UPDATE ${resolvedTable}
+          SET attempts = @attempts,
+              lastAttemptAt = @lastAttemptAt,
+              nextRetryAt = @nextRetryAt,
+              failed = @failed
+          WHERE id = @id
+        `,
+      )
+      .run({
+        id,
+        attempts,
+        lastAttemptAt: new Date().toISOString(),
+        nextRetryAt,
+        failed: failed ? 1 : 0,
+      });
+  }
+
+  public getQueueDepth(): {
+    pendingDetections: number;
+    pendingMatchEvents: number;
+    failedDetections: number;
+    failedMatchEvents: number;
+  } {
+    return {
+      pendingDetections: this.countRows(
+        `
+          SELECT COUNT(*) AS count
+          FROM pending_detections
+          WHERE synced = 0 AND failed = 0
+        `,
+      ),
+      pendingMatchEvents: this.countRows(
+        `
+          SELECT COUNT(*) AS count
+          FROM pending_match_events
+          WHERE synced = 0 AND failed = 0
+        `,
+      ),
+      failedDetections: this.countRows(
+        `
+          SELECT COUNT(*) AS count
+          FROM pending_detections
+          WHERE synced = 0 AND failed = 1
+        `,
+      ),
+      failedMatchEvents: this.countRows(
+        `
+          SELECT COUNT(*) AS count
+          FROM pending_match_events
+          WHERE synced = 0 AND failed = 1
+        `,
+      ),
+    };
+  }
+
+  public resetFailedItems(table: "pending_detections" | "pending_match_events"): number {
+    const resolvedTable = this.resolvePendingTable(table);
+    const result = this.db
+      .prepare(
+        `
+          UPDATE ${resolvedTable}
+          SET failed = 0,
+              attempts = 0,
+              lastAttemptAt = NULL,
+              nextRetryAt = NULL
+          WHERE synced = 0
+            AND failed = 1
+        `,
+      )
+      .run();
+
+    return result.changes;
   }
 
   public upsertHitlistEntry(entry: LocalHitlistEntry): void {
@@ -452,5 +576,18 @@ export class DbClient {
         `,
       )
       .run({ scope, cursor, updatedAt });
+  }
+
+  private resolvePendingTable(table: "pending_detections" | "pending_match_events"): string {
+    if (table === "pending_detections") {
+      return table;
+    }
+
+    return "pending_match_events";
+  }
+
+  private countRows(sql: string): number {
+    const row = this.db.prepare(sql).get() as { count: number } | undefined;
+    return row?.count ?? 0;
   }
 }

@@ -119,6 +119,10 @@ export interface PendingDetection {
   color: string | null;
   synced: number;
   syncedAt: string | null;
+  attempts?: number;
+  lastAttemptAt?: string | null;
+  nextRetryAt?: string | null;
+  failed?: number;
   createdAt: string;
 }
 
@@ -131,7 +135,21 @@ export interface PendingMatchEvent {
   note: string | null;
   synced: number;
   syncedAt: string | null;
+  attempts?: number;
+  lastAttemptAt?: string | null;
+  nextRetryAt?: string | null;
+  failed?: number;
   createdAt: string;
+}
+
+export interface FlushSummary {
+  matchEventsSynced: number;
+  detectionsSynced: number;
+  matchEventsRetried: number;
+  detectionsRetried: number;
+  matchEventsFailed: number;
+  detectionsFailed: number;
+  errors: number;
 }
 
 export interface PendingSnapshot {
@@ -275,6 +293,9 @@ export interface WorkstationConfig {
   heartbeatIntervalMs: number;
   outboxFlushIntervalMs: number;
   outboxBatchSize: number;
+  outboxMaxRetries: number;
+  outboxRetryBaseDelayMs: number;
+  outboxRetryMaxDelayMs: number;
   tabletWsPort: number;
   ttsEnabled: boolean;
   logLevel: string;
