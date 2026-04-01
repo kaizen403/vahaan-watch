@@ -4,6 +4,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { username } from "better-auth/plugins";
 import { prisma } from "./prisma.js";
 import { config } from "./env.js";
+import { writeAuditLog } from "./audit.js";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -36,5 +37,19 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        after: async (session) => {
+          await writeAuditLog({
+            actorUser: { id: session.userId, email: "", name: "", username: null, role: "" },
+            action: "user.signed_in",
+            entityType: "session",
+            entityId: session.id,
+          }).catch(() => {});
+        },
+      },
+    },
   },
 });
