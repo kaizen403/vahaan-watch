@@ -721,6 +721,34 @@ Exit criteria:
 - duplicate uploads do not corrupt central state
 - workstation can restore state from the local DB after restart
 
+### Phase 5.5: Central Queue And Live Tablet Delivery
+
+Build the server-side fan-out so the central backend can push events to many connected tablets without a polling bottleneck.
+
+Context:
+
+The outbox pattern is already implemented on the workstation side. Workstations write locally first, then drain to apps/api via OutboxFlusher. What does not exist yet is the delivery path in the other direction: central backend reading from outbox_jobs and pushing to connected tablet sessions in real time. Without this, tablets would need to poll the API for alerts, which becomes a bottleneck when many tablets are connected simultaneously.
+
+Scope:
+
+- implement an outbox processor in apps/api that reads pending outbox_jobs from PostgreSQL
+- use PostgreSQL LISTEN/NOTIFY to trigger the processor immediately when new jobs are inserted, with a polling fallback for reliability
+- add a WebSocket or SSE endpoint in apps/api for tablet clients to maintain a persistent connection
+- processor fans out relevant jobs to all connected tablet sessions matching the target device or broadcast scope
+- failed deliveries are retried with backoff; undeliverable jobs are marked as dead-lettered after a configurable threshold
+- tablet client reconnect handling: on reconnect, tablet replays any missed events since its last acknowledged cursor
+
+Exit criteria:
+
+- central backend can push alerts to all connected tablets without tablets polling
+- a spike of many tablets connecting simultaneously does not degrade API response times for workstation ingest
+- alerts survive a tablet disconnect and are delivered on reconnect
+- no external message broker required at this scale
+
+Upgrade path:
+
+If event volume or connection count grows beyond what PostgreSQL LISTEN/NOTIFY can handle comfortably, this layer can be replaced with NATS or Redis Pub/Sub without changing the tablet client contract or the workstation outbox behavior. The interface boundary is the SSE/WebSocket endpoint, not the internal delivery mechanism.
+
 ### Phase 6: Security, Observability, And Hardening
 
 Scope:
