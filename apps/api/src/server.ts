@@ -1,7 +1,10 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { config } from "./lib/env.js";
+import { createLogger } from "./lib/logger.js";
+import { startOutboxProcessor } from "./lib/outbox-processor.js";
 
+const logger = createLogger("server");
 const app = createApp();
 
 serve(
@@ -10,6 +13,7 @@ serve(
     port: config.port,
   },
   (info) => {
-    console.log(`apps/api listening on http://localhost:${info.port}`);
+    logger.info({ port: info.port, env: config.nodeEnv }, "apps/api started");
+    startOutboxProcessor();
   },
 );
