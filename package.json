@@ -1,12 +1,9 @@
 {
   "name": "adarecog",
   "private": true,
-  "packageManager": "npm@10.9.2",
-  "workspaces": [
-    "apps/*"
-  ],
+  "packageManager": "pnpm@10.7.0",
   "scripts": {
-    "dev": "turbo dev --filter=!@adarecog/ws-server",
+    "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
     "typecheck": "turbo typecheck"

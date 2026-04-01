@@ -60,7 +60,7 @@ function LoginForm() {
             <Shield className="w-8 h-8 text-primary" strokeWidth={1.5} />
           </div>
           <h1 className="text-3xl font-bold tracking-[0.2em] text-foreground uppercase">
-            COMMAND-X
+            Vehicle Surveillance
           </h1>
           <p className="text-muted-foreground text-sm mt-2 tracking-wide">
             Vehicle Surveillance Platform
@@ -85,7 +85,7 @@ function LoginForm() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="operator@commandx.io"
+                  placeholder="operator@vehiclesurveillance.io"
                   className="h-auto bg-input border-border pl-10 py-3 placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-1 focus-visible:ring-primary/20 focus-visible:ring-offset-0"
                 />
               </div>

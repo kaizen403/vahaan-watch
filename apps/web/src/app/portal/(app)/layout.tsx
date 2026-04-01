@@ -149,7 +149,7 @@ function Sidebar({
           <Shield className="w-4 h-4 text-primary" strokeWidth={1.5} />
         </div>
         {!collapsed && (
-          <span className="font-bold tracking-[0.15em] text-sm text-foreground">COMMAND-X</span>
+          <span className="font-bold tracking-[0.15em] text-sm text-foreground">Vehicle Surveillance</span>
         )}
       </div>
 
@@ -247,7 +247,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
             <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center">
               <Shield className="w-4 h-4 text-primary" strokeWidth={1.5} />
             </div>
-            <span className="font-bold tracking-[0.15em] text-sm text-foreground">COMMAND-X</span>
+            <span className="font-bold tracking-[0.15em] text-sm text-foreground">Vehicle Surveillance</span>
           </div>
           <Button
             type="button"

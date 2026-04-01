@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "COMMAND-X | Vehicle Surveillance Platform",
+  title: "Vehicle Surveillance",
   description: "Central operations platform for ANPR surveillance and fleet monitoring",
 };
 

@@ -1,0 +1,16 @@
+packages:
+  - apps/*
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - a
+  - better-sqlite3
+  - esbuild
+  - i
+  - m
+  - p
+  - prisma
+  - r
+  - s
+  - sharp
+  - tesseract.js
