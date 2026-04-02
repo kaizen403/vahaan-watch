@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --env-file=.env src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
@@ -13,9 +13,9 @@
     "prisma:validate": "prisma validate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "seed:admin": "tsx src/scripts/seed-admin.ts",
-    "db:backup": "tsx src/scripts/backup.ts",
-    "db:restore": "tsx src/scripts/restore.ts"
+    "seed:admin": "tsx --env-file=.env src/scripts/seed-admin.ts",
+    "db:backup": "tsx --env-file=.env src/scripts/backup.ts",
+    "db:restore": "tsx --env-file=.env src/scripts/restore.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.12",

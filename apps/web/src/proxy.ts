@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3003";
+const API_BASE =
+  process.env.INTERNAL_API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:3003";
 
 const PUBLIC_PATHS = [
   "/_next",
@@ -37,7 +40,7 @@ async function fetchRole(cookie: string): Promise<string | null> {
   }
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
