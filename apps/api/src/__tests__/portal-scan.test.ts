@@ -1,10 +1,12 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import bcrypt from "bcryptjs";
 import { createApp } from "../app.js";
 import { prisma } from "../lib/prisma.js";
 
 const app = createApp();
 
-let sessionCookie = "";
+let adminCookie = "";
+let scannerCookie = "";
 let hitlistId = "";
 let versionId = "";
 const detectionIds: string[] = [];
@@ -37,8 +39,50 @@ async function signIn(email: string, password: string): Promise<string> {
   return res.headers.getSetCookie().join("; ");
 }
 
+async function ensureScannerRole() {
+  await prisma.role.upsert({
+    where: { name: "scanner" },
+    update: {},
+    create: {
+      name: "scanner",
+      description: "Field scanning operators",
+      permissions: ["portal:scan"] as never,
+    },
+  });
+}
+
+async function ensureScannerUser() {
+  const email = "test-scanner@test.com";
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return;
+
+  const user = await prisma.user.create({
+    data: {
+      email,
+      name: "Test Scanner",
+      username: "testscanner",
+      displayUsername: "testscanner",
+      role: "scanner",
+      emailVerified: true,
+    },
+  });
+
+  await prisma.account.create({
+    data: {
+      userId: user.id,
+      accountId: user.id,
+      providerId: "credential",
+      password: await bcrypt.hash("testscanner", 10),
+    },
+  });
+}
+
 beforeAll(async () => {
-  sessionCookie = await signIn("sibi@sibi.com", "sibi");
+  adminCookie = await signIn("sibi@sibi.com", "sibi");
+
+  await ensureScannerRole();
+  await ensureScannerUser();
+  scannerCookie = await signIn("test-scanner@test.com", "testscanner");
 
   const hitlist = await prisma.hitlist.create({
     data: {
@@ -115,7 +159,7 @@ describe("POST /api/portal/scan", () => {
   });
 
   it("returns 400 when plate is missing", async () => {
-    const res = await req("POST", "/api/portal/scan", {}, sessionCookie);
+    const res = await req("POST", "/api/portal/scan", {}, adminCookie);
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.success).toBe(false);
@@ -126,7 +170,7 @@ describe("POST /api/portal/scan", () => {
       "POST",
       "/api/portal/scan",
       { plate: "NOMATCH999", country: "IN" },
-      sessionCookie,
+      adminCookie,
     );
     expect(res.status).toBe(201);
 
@@ -145,7 +189,7 @@ describe("POST /api/portal/scan", () => {
       "POST",
       "/api/portal/scan",
       { plate: "TEST-123", country: "IN", confidence: 0.95 },
-      sessionCookie,
+      adminCookie,
     );
     expect(res.status).toBe(201);
 
@@ -171,7 +215,7 @@ describe("POST /api/portal/scan", () => {
       "POST",
       "/api/portal/scan",
       { plate: "AP-39 BK 2015", country: "IN" },
-      sessionCookie,
+      adminCookie,
     );
     expect(res.status).toBe(201);
 
@@ -205,7 +249,7 @@ describe("POST /api/portal/scan", () => {
       "POST",
       "/api/portal/scan",
       { plate: "test 123" },
-      sessionCookie,
+      adminCookie,
     );
     expect(res.status).toBe(201);
 
@@ -214,5 +258,39 @@ describe("POST /api/portal/scan", () => {
     expect(json.data.detection.plate).toBe("test 123");
 
     detectionIds.push(json.data.detection.id);
+  });
+
+  it("scanner role can access /api/portal/scan", async () => {
+    const res = await req(
+      "POST",
+      "/api/portal/scan",
+      { plate: "SCANNER-TEST-001", country: "IN" },
+      scannerCookie,
+    );
+    expect(res.status).toBe(201);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.detection.plate).toBe("SCANNER-TEST-001");
+
+    detectionIds.push(json.data.detection.id);
+  });
+
+  it("scanner role cannot access admin-only routes", async () => {
+    const res = await req("GET", "/api/devices", undefined, scannerCookie);
+    expect(res.status).toBe(403);
+  });
+
+  it("scanner role cannot access hitlist management", async () => {
+    const res = await req("GET", "/api/hitlists", undefined, scannerCookie);
+    expect(res.status).toBe(403);
+  });
+
+  it("scanner role can read session", async () => {
+    const res = await req("GET", "/api/session", undefined, scannerCookie);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.data.user.role).toBe("scanner");
   });
 });
