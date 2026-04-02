@@ -32,6 +32,19 @@ async function main() {
     },
   });
 
+  await prisma.role.upsert({
+    where: { name: "scanner" },
+    update: {
+      description: "Field scanning operators (tablet/police)",
+      permissions: ["portal:scan"] as never,
+    },
+    create: {
+      name: "scanner",
+      description: "Field scanning operators (tablet/police)",
+      permissions: ["portal:scan"] as never,
+    },
+  });
+
   const existing = await prisma.user.findUnique({
     where: { email: config.seedAdminEmail },
   });
@@ -62,6 +75,35 @@ async function main() {
   });
 
   logger.info({ email: config.seedAdminEmail, username: config.seedAdminUsername }, "admin seeded");
+
+  const scannerEmail = "scanner@scanner.com";
+  const existingScanner = await prisma.user.findUnique({
+    where: { email: scannerEmail },
+  });
+
+  if (!existingScanner) {
+    const scannerUser = await prisma.user.create({
+      data: {
+        email: scannerEmail,
+        name: "Field Scanner",
+        username: "scanner",
+        displayUsername: "scanner",
+        role: "scanner",
+        emailVerified: true,
+      },
+    });
+
+    await prisma.account.create({
+      data: {
+        userId: scannerUser.id,
+        accountId: scannerUser.id,
+        providerId: "credential",
+        password: await bcrypt.hash("scanner", 10),
+      },
+    });
+
+    logger.info({ email: scannerEmail }, "scanner user seeded");
+  }
 }
 
 main()
