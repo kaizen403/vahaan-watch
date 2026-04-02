@@ -54,7 +54,7 @@ export function createApp() {
   app.use("/api/match-events/*", requireUser, requireRole("admin", "operator"));
   app.route("/", matchEventRoutes);
 
-  app.use("/api/portal/scan", requireUser);
+  app.use("/api/portal/scan", requireUser, requireRole("admin", "operator", "scanner"));
   app.route("/", portalScanRoutes);
 
   app.use("/api/ingest/*", requireDevice);
