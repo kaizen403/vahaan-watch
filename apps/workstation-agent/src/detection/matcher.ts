@@ -26,6 +26,6 @@ export class PlateMatcher {
   }
 
   public static normalizePlate(raw: string): string {
-    return raw.replace(/[\s.-]+/g, "").toUpperCase();
+    return raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
   }
 }

@@ -30,6 +30,10 @@ describe("PlateMatcher", () => {
     expect(PlateMatcher.normalizePlate(" test 123 ")).toBe("TEST123");
   });
 
+  it("normalizes plate using canonical [^A-Z0-9] form", () => {
+    expect(PlateMatcher.normalizePlate("AB-12.3 C")).toBe("AB123C");
+  });
+
   it("returns matched results from the backing store", () => {
     const entries = [createEntry()];
     const db = {
