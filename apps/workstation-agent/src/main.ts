@@ -11,6 +11,7 @@ import { HitlistDownloader } from "./hitlist/downloader.js";
 import { createLogger, setLogLevel } from "./logger.js";
 import { OutboxFlusher } from "./sync/outbox.js";
 import { TabletBridge } from "./tablet/bridge.js";
+import { TtsAnnouncer } from "./alert/tts.js";
 import type {
   AlertPayload,
   CameraFrame,
@@ -254,19 +255,6 @@ async function updateRuntimeHealthSnapshots(db: DbClient, camera: CameraAdapter,
 
 
 
-class TtsAnnouncer {
-  private readonly logger = createLogger("tts-announcer");
-
-  public constructor(private readonly enabled: boolean) {}
-
-  public async announce(message: string): Promise<void> {
-    if (!this.enabled) {
-      return;
-    }
-
-    this.logger.info("tts announcement", { message });
-  }
-}
 
 class Alerter {
   public constructor(
@@ -311,7 +299,7 @@ export async function main(): Promise<void> {
   const plateMatcher = new PlateMatcher(db);
   const outboxFlusher = new OutboxFlusher(api, db, config);
   const heartbeatService = new HeartbeatService(api, db, config);
-  const ttsAnnouncer = new TtsAnnouncer(config.ttsEnabled);
+  const ttsAnnouncer = new TtsAnnouncer(config);
   const tabletBridge = new TabletBridge(config);
   const alerter = new Alerter(tabletBridge, ttsAnnouncer);
   const camera = new runtimeModules.FfmpegCameraAdapter(config);
