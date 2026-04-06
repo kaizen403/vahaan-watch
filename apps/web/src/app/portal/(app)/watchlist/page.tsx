@@ -23,6 +23,7 @@ import {
   Car,
   Globe,
   Shield,
+  Monitor,
 } from "lucide-react";
 
 /* ── types ─────────────────────────────────────────── */
@@ -64,6 +65,22 @@ interface Hitlist {
 
 type ApiResp<T> = { success: true; data: T } | { success: false; error: string };
 
+interface WorkstationSummary {
+  id: string;
+  deviceId: string;
+  name: string;
+  status: string;
+}
+
+interface HitlistAssignment {
+  id: string;
+  hitlistId: string;
+  workstationId: string;
+  assignedAt: string;
+  assignedBy: string | null;
+  workstation: WorkstationSummary;
+}
+
 /* ── helpers ───────────────────────────────────────── */
 
 function statusBadgeVariant(status: HitlistStatus): "success" | "warning" | "secondary" {
@@ -104,6 +121,12 @@ export default function WatchlistPage() {
   const [versionEntries, setVersionEntries] = useState("");
   const [addingVersion, setAddingVersion] = useState(false);
 
+  const [assignments, setAssignments] = useState<HitlistAssignment[]>([]);
+  const [workstations, setWorkstations] = useState<WorkstationSummary[]>([]);
+  const [showAssign, setShowAssign] = useState<string | null>(null);
+  const [selectedWsIds, setSelectedWsIds] = useState<string[]>([]);
+  const [assigning, setAssigning] = useState(false);
+
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -118,20 +141,49 @@ export default function WatchlistPage() {
     }
   }, []);
 
-  useEffect(() => { void fetchList(); }, [fetchList]);
+  const fetchWorkstations = useCallback(async () => {
+    try {
+      const resp = await api.get<ApiResp<{ workstations: WorkstationSummary[]; tablets: unknown[]; pairings: unknown[] }>>("/api/devices");
+      if (resp.success) setWorkstations(resp.data.workstations);
+    } catch (_) {
+      setWorkstations([]);
+    }
+  }, []);
+
+  useEffect(() => { void fetchList(); void fetchWorkstations(); }, [fetchList, fetchWorkstations]);
+
+  async function fetchAssignments(hitlistId: string) {
+    try {
+      const resp = await api.get<ApiResp<HitlistAssignment[]>>(`/api/hitlists/${hitlistId}/assignments`);
+      if (resp.success) setAssignments(resp.data);
+      else setAssignments([]);
+    } catch (_) {
+      setAssignments([]);
+    }
+  }
 
   async function loadDetail(id: string) {
     if (expandedId === id) {
       setExpandedId(null);
       setDetailData(null);
+      setAssignments([]);
+      setShowAssign(null);
+      setSelectedWsIds([]);
       return;
     }
     setExpandedId(id);
     setDetailLoading(true);
+    setAssignments([]);
+    setShowAssign(null);
+    setSelectedWsIds([]);
     try {
       const resp = await api.get<ApiResp<Hitlist>>(`/api/hitlists/${id}`);
-      if (resp.success) setDetailData(resp.data);
-      else setError(resp.error);
+      if (resp.success) {
+        setDetailData(resp.data);
+        await fetchAssignments(id);
+      } else {
+        setError(resp.error);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load hitlist");
     } finally {
@@ -197,6 +249,42 @@ export default function WatchlistPage() {
       setError(e instanceof Error ? e.message : "Failed to add version");
     } finally {
       setAddingVersion(false);
+    }
+  }
+
+  async function handleAssign(hitlistId: string) {
+    if (selectedWsIds.length === 0) return;
+    setAssigning(true);
+    try {
+      await api.post(`/api/hitlists/${hitlistId}/assign`, { workstationIds: selectedWsIds });
+      setShowAssign(null);
+      setSelectedWsIds([]);
+      await fetchAssignments(hitlistId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to assign");
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function handleUnassign(hitlistId: string, workstationId: string) {
+    try {
+      await api.del(`/api/hitlists/${hitlistId}/assign/${workstationId}`);
+      await fetchAssignments(hitlistId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to unassign");
+    }
+  }
+
+  async function handleAssignAll(hitlistId: string) {
+    setAssigning(true);
+    try {
+      await api.post(`/api/hitlists/${hitlistId}/assign-all`, {});
+      await fetchAssignments(hitlistId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to assign all");
+    } finally {
+      setAssigning(false);
     }
   }
 
@@ -426,6 +514,83 @@ export default function WatchlistPage() {
                       {detailData.description && (
                         <p className="text-sm text-muted-foreground">{detailData.description}</p>
                       )}
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                            <Monitor className="h-4 w-4 text-muted-foreground" />
+                            Assigned Workstations ({assignments.length})
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={() => void handleAssignAll(h.id)} disabled={assigning} className="text-xs glass glass-hover">
+                              Assign All
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" onClick={() => { setShowAssign(showAssign === h.id ? null : h.id); if (!workstations.length) void fetchWorkstations(); }} className="text-xs glass glass-hover">
+                              <Plus className="h-3 w-3" />
+                              Assign
+                            </Button>
+                          </div>
+                        </div>
+
+                        {showAssign === h.id && (
+                          <div className="glass rounded-lg p-4 space-y-3">
+                            <p className="text-xs text-muted-foreground">Select workstations to assign this hitlist:</p>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                              {workstations
+                                .filter(ws => !assignments.some(a => a.workstationId === ws.id))
+                                .map(ws => (
+                                  <label key={ws.id} className="flex items-center gap-3 p-2 rounded-lg glass-hover cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedWsIds.includes(ws.id)}
+                                      onChange={(e) => {
+                                        setSelectedWsIds(prev =>
+                                          e.target.checked ? [...prev, ws.id] : prev.filter(id => id !== ws.id)
+                                        );
+                                      }}
+                                      className="rounded border-border"
+                                    />
+                                    <span className="text-sm text-foreground">{ws.name}</span>
+                                    <Badge variant="secondary" className="text-xs ml-auto">{ws.deviceId}</Badge>
+                                  </label>
+                                ))}
+                              {workstations.filter(ws => !assignments.some(a => a.workstationId === ws.id)).length === 0 && (
+                                <p className="text-xs text-muted-foreground text-center py-2">All workstations already assigned</p>
+                              )}
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <Button type="button" variant="outline" size="sm" onClick={() => { setShowAssign(null); setSelectedWsIds([]); }} className="glass glass-hover">Cancel</Button>
+                              <Button type="button" size="sm" disabled={assigning || selectedWsIds.length === 0} onClick={() => void handleAssign(h.id)}>
+                                {assigning ? "Assigning…" : `Assign (${selectedWsIds.length})`}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {assignments.length > 0 ? (
+                          <div className="space-y-1">
+                            {assignments.map(a => (
+                              <div key={a.id} className="flex items-center justify-between px-3 py-2 glass rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <Monitor className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm text-foreground">{a.workstation.name}</span>
+                                  <Badge variant="secondary" className="text-xs">{a.workstation.deviceId}</Badge>
+                                  <Badge variant={a.workstation.status === "ACTIVE" ? "success" : "warning"} className="text-xs capitalize">
+                                    {a.workstation.status.toLowerCase()}
+                                  </Badge>
+                                </div>
+                                <Button type="button" variant="ghost" size="icon" onClick={() => void handleUnassign(h.id, a.workstationId)} className="text-muted-foreground hover:text-destructive h-6 w-6">
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground text-center py-3 glass rounded-lg">
+                            No workstations assigned. Assign workstations to distribute this hitlist.
+                          </p>
+                        )}
+                      </div>
 
                       {detailData.versions.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-6">
