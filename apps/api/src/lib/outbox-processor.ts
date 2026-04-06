@@ -111,6 +111,42 @@ async function processBatch(): Promise<number> {
         } else {
           logger.warn({ jobId: job.id, aggregateId: job.aggregateId }, "match event missing for outbox job");
         }
+      } else if (job.topic === "detection.created") {
+        const detection = await prisma.detection.findUnique({
+          where: { id: job.aggregateId },
+          select: {
+            id: true,
+            workstationId: true,
+            plate: true,
+            confidence: true,
+            occurredAt: true,
+            snapshotUrl: true,
+            createdAt: true,
+          },
+        });
+
+        if (detection) {
+          const eventData = JSON.stringify({
+            type: "detection-created",
+            id: detection.id,
+            workstationId: detection.workstationId,
+            plate: detection.plate,
+            confidence: detection.confidence,
+            occurredAt: detection.occurredAt,
+            snapshotUrl: detection.snapshotUrl,
+            createdAt: detection.createdAt.toISOString(),
+          });
+
+          sendToWorkstationConnections(
+            detection.workstationId,
+            "detection-created",
+            eventData,
+          );
+
+          logger.debug({ jobId: job.id, detectionId: detection.id }, "detection event dispatched");
+        } else {
+          logger.warn({ jobId: job.id, aggregateId: job.aggregateId }, "detection missing for outbox job");
+        }
       }
 
       await prisma.outboxJob.update({

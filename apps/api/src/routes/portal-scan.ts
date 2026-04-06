@@ -15,22 +15,16 @@ export const portalScanRoutes = new Hono<AppBindings>();
 const PORTAL_SCANNER_DEVICE_ID = "portal-scanner";
 
 async function getOrCreatePortalWorkstation(): Promise<string> {
-  const existing = await prisma.workstation.findUnique({
+  const ws = await prisma.workstation.upsert({
     where: { deviceId: PORTAL_SCANNER_DEVICE_ID },
-  });
-
-  if (existing) return existing.id;
-
-  const ws = await prisma.workstation.create({
-    data: {
+    update: {},
+    create: {
       deviceId: PORTAL_SCANNER_DEVICE_ID,
       name: "Portal Scanner",
       description: "Virtual workstation for browser-based scanning",
       status: "ACTIVE",
     },
   });
-
-  logger.info({ workstationId: ws.id }, "created portal scanner workstation");
   return ws.id;
 }
 
