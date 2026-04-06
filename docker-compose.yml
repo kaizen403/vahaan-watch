@@ -36,7 +36,7 @@ services:
     environment:
       PORT: 3003
       API_BASE_URL: http://localhost:3003
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/adarecog_phase1
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/adarecog_phase1?connection_limit=15&pool_timeout=30
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-replace-with-long-random-secret}
       BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-http://localhost:3001}
       DEVICE_PROVISIONING_TOKEN: ${DEVICE_PROVISIONING_TOKEN:-dev-provisioning-token-local}
