@@ -27,6 +27,9 @@ const rateLimitStore = process.env.NODE_ENV === "production"
 
 const authRateLimit = rateLimit({ max: 20, windowMs: 60_000, store: rateLimitStore });
 const deviceRegRateLimit = rateLimit({ max: 10, windowMs: 60_000, store: rateLimitStore });
+const ingestRateLimit = rateLimit({ max: 60, windowMs: 60_000, store: rateLimitStore });
+const heartbeatRateLimit = rateLimit({ max: 10, windowMs: 60_000, store: rateLimitStore });
+const syncRateLimit = rateLimit({ max: 20, windowMs: 60_000, store: rateLimitStore });
 
 export function createApp() {
   const app = new Hono<AppBindings>();
@@ -63,14 +66,17 @@ export function createApp() {
   app.use("/api/portal/scan", requireUser, requireRole("admin", "operator", "scanner"));
   app.route("/", portalScanRoutes);
 
+  app.use("/api/ingest/*", ingestRateLimit);
   app.use("/api/ingest/*", requireDevice);
   app.route("/", ingestRoutes);
 
+  app.use("/api/telemetry/heartbeat", heartbeatRateLimit);
   app.use("/api/telemetry/heartbeat", requireDevice);
   app.use("/api/telemetry/device/:deviceId", requireUser, requireRole("admin", "operator"));
   app.use("/api/devices/:deviceId/health", requireUser, requireRole("admin", "operator"));
   app.route("/", telemetryRoutes);
 
+  app.use("/api/sync/*", syncRateLimit);
   app.use("/api/sync/hitlists/*", requireDevice);
   app.use("/api/sync/cursors", requireDevice);
   app.route("/", syncRoutes);
