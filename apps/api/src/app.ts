@@ -13,6 +13,7 @@ import { eventRoutes } from "./routes/events.js";
 import { telemetryRoutes } from "./routes/telemetry.js";
 import { syncRoutes } from "./routes/sync.js";
 import { portalScanRoutes } from "./routes/portal-scan.js";
+import { workstationStatsRoutes } from "./routes/workstation-stats.js";
 import { sessionContext, requireRole, requireUser } from "./middleware/session.js";
 import { requireDevice } from "./middleware/device-auth.js";
 import { securityHeaders, bodyLimit } from "./middleware/security.js";
@@ -55,6 +56,7 @@ export function createApp() {
   app.use("/api/devices/pairings", requireUser, requireRole("admin"));
   app.route("/", deviceRoutes);
 
+  app.use("/api/hitlists/*/assign-all", requireUser, requireRole("admin"));
   app.use("/api/hitlists", requireUser, requireRole("admin", "operator"));
   app.use("/api/hitlists/*", requireUser, requireRole("admin", "operator"));
   app.route("/", hitlistRoutes);
@@ -62,6 +64,10 @@ export function createApp() {
   app.use("/api/match-events", requireUser, requireRole("admin", "operator"));
   app.use("/api/match-events/*", requireUser, requireRole("admin", "operator"));
   app.route("/", matchEventRoutes);
+
+  app.use("/api/workstations/*/stats", requireUser, requireRole("admin", "operator"));
+  app.use("/api/detections", requireUser, requireRole("admin", "operator"));
+  app.route("/", workstationStatsRoutes);
 
   app.use("/api/portal/scan", requireUser, requireRole("admin", "operator", "scanner"));
   app.route("/", portalScanRoutes);
@@ -77,6 +83,7 @@ export function createApp() {
   app.route("/", telemetryRoutes);
 
   app.use("/api/sync/*", syncRateLimit);
+  app.use("/api/sync/hitlists", requireDevice);
   app.use("/api/sync/hitlists/*", requireDevice);
   app.use("/api/sync/cursors", requireDevice);
   app.route("/", syncRoutes);

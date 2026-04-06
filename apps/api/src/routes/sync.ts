@@ -20,6 +20,32 @@ syncRoutes.get("/api/sync/contracts", (c) =>
   }),
 );
 
+syncRoutes.get("/api/sync/hitlists", async (c) => {
+  const device = c.get("device");
+  if (!device) {
+    return fail(c, 401, "Device authentication required.");
+  }
+
+  const workstationId = device.token.workstationId;
+  if (!workstationId) {
+    return fail(c, 400, "Only workstation devices can sync hitlists.");
+  }
+
+  const assignments = await prisma.hitlistAssignment.findMany({
+    where: { workstationId },
+    include: { hitlist: true },
+  });
+
+  return ok(c, {
+    hitlists: assignments.map((a) => ({
+      hitlistId: a.hitlistId,
+      name: a.hitlist.name,
+      status: a.hitlist.status,
+      currentVersionNumber: a.hitlist.currentVersionNumber,
+    })),
+  });
+});
+
 syncRoutes.get("/api/sync/hitlists/:hitlistId", async (c) => {
   const hitlistId = c.req.param("hitlistId");
   const sinceVersion = Number(c.req.query("sinceVersion") ?? "0");

@@ -150,6 +150,7 @@ model Workstation {
   matchEvents    MatchEvent[]
   telemetryPoints TelemetryPoint[]
   pairings       DevicePairing[] @relation("WorkstationPairings")
+  hitlistAssignments HitlistAssignment[]
 
   @@map("workstations")
 }
@@ -212,8 +213,22 @@ model Hitlist {
   createdBy            User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   versions             HitlistVersion[]
   detections           Detection[]
+  assignments          HitlistAssignment[]
 
   @@map("hitlists")
+}
+
+model HitlistAssignment {
+  id            String      @id @default(cuid())
+  hitlistId     String
+  workstationId String
+  assignedAt    DateTime    @default(now())
+  assignedBy    String?
+  hitlist       Hitlist     @relation(fields: [hitlistId], references: [id], onDelete: Cascade)
+  workstation   Workstation @relation(fields: [workstationId], references: [id], onDelete: Cascade)
+
+  @@unique([hitlistId, workstationId])
+  @@map("hitlist_assignments")
 }
 
 model HitlistVersion {

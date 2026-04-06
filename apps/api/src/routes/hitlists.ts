@@ -210,6 +210,122 @@ hitlistRoutes.post("/api/hitlists/:hitlistId/versions", async (c) => {
   return ok(c, decryptedVersion, 201);
 });
 
+hitlistRoutes.post("/api/hitlists/:hitlistId/assign", async (c) => {
+  const user = c.get("user");
+  const hitlistId = c.req.param("hitlistId");
+  const body = await c.req.json();
+  const workstationIds: unknown = body.workstationIds;
+
+  if (!Array.isArray(workstationIds) || workstationIds.length === 0) {
+    return fail(c, 400, "workstationIds must be a non-empty array.");
+  }
+
+  const hitlist = await prisma.hitlist.findUnique({ where: { id: hitlistId } });
+  if (!hitlist) {
+    return fail(c, 404, "Hitlist not found.");
+  }
+
+  const workstations = await prisma.workstation.findMany({
+    where: { id: { in: workstationIds as string[] } },
+    select: { id: true },
+  });
+
+  const foundIds = new Set(workstations.map((w) => w.id));
+  const missing = (workstationIds as string[]).filter((id) => !foundIds.has(id));
+  if (missing.length > 0) {
+    return fail(c, 400, `Workstation(s) not found: ${missing.join(", ")}`);
+  }
+
+  const result = await prisma.hitlistAssignment.createMany({
+    data: (workstationIds as string[]).map((wId) => ({
+      hitlistId,
+      workstationId: wId,
+      assignedBy: user?.id ?? null,
+    })),
+    skipDuplicates: true,
+  });
+
+  await writeAuditLog({
+    actorUser: user,
+    action: "hitlist.assigned",
+    entityType: "hitlist",
+    entityId: hitlistId,
+    metadata: { workstationIds, count: result.count },
+  });
+
+  return ok(c, { assigned: result.count }, 201);
+});
+
+hitlistRoutes.delete("/api/hitlists/:hitlistId/assign/:workstationId", async (c) => {
+  const user = c.get("user");
+  const hitlistId = c.req.param("hitlistId");
+  const workstationId = c.req.param("workstationId");
+
+  await prisma.hitlistAssignment.deleteMany({
+    where: { hitlistId, workstationId },
+  });
+
+  await writeAuditLog({
+    actorUser: user,
+    action: "hitlist.unassigned",
+    entityType: "hitlist",
+    entityId: hitlistId,
+    metadata: { workstationId },
+  });
+
+  return ok(c, { success: true });
+});
+
+hitlistRoutes.get("/api/hitlists/:hitlistId/assignments", async (c) => {
+  const hitlistId = c.req.param("hitlistId");
+
+  const assignments = await prisma.hitlistAssignment.findMany({
+    where: { hitlistId },
+    include: {
+      workstation: {
+        select: { id: true, deviceId: true, name: true, status: true },
+      },
+    },
+    orderBy: { assignedAt: "desc" },
+  });
+
+  return ok(c, assignments);
+});
+
+hitlistRoutes.post("/api/hitlists/:hitlistId/assign-all", async (c) => {
+  const user = c.get("user");
+  const hitlistId = c.req.param("hitlistId");
+
+  const hitlist = await prisma.hitlist.findUnique({ where: { id: hitlistId } });
+  if (!hitlist) {
+    return fail(c, 404, "Hitlist not found.");
+  }
+
+  const activeWorkstations = await prisma.workstation.findMany({
+    where: { status: "ACTIVE" },
+    select: { id: true },
+  });
+
+  const result = await prisma.hitlistAssignment.createMany({
+    data: activeWorkstations.map((w) => ({
+      hitlistId,
+      workstationId: w.id,
+      assignedBy: user?.id ?? null,
+    })),
+    skipDuplicates: true,
+  });
+
+  await writeAuditLog({
+    actorUser: user,
+    action: "hitlist.assigned",
+    entityType: "hitlist",
+    entityId: hitlistId,
+    metadata: { allActive: true, count: result.count },
+  });
+
+  return ok(c, { assigned: result.count }, 201);
+});
+
 hitlistRoutes.get("/api/hitlists/:hitlistId/versions", async (c) => {
   const versions = await prisma.hitlistVersion.findMany({
     where: { hitlistId: c.req.param("hitlistId") },
