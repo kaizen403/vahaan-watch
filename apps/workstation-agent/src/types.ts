@@ -231,7 +231,8 @@ export type TabletEvent =
   | { type: "detection"; data: DetectionEvent }
   | { type: "match"; data: MatchResult & { detection: DetectionEvent } }
   | { type: "alert"; data: AlertPayload }
-  | { type: "health"; data: HealthReport };
+  | { type: "health"; data: HealthReport }
+  | { type: "status"; data: { connectedTablets: number } };
 
 export interface ComponentHealth {
   component: string;
@@ -294,6 +295,7 @@ export interface WorkstationConfig {
   heartbeatIntervalMs: number;
   outboxFlushIntervalMs: number;
   outboxBatchSize: number;
+  detectionBatchSize: number;
   outboxMaxRetries: number;
   outboxRetryBaseDelayMs: number;
   outboxRetryMaxDelayMs: number;

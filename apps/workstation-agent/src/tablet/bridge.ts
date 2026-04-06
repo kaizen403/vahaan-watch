@@ -71,6 +71,10 @@ export class TabletBridge {
     logger.debug("tablet event broadcast", { eventType: event.type, delivered });
   }
 
+  public connectedCount(): number {
+    return this.server ? this.server.clients.size : 0;
+  }
+
   public async stop(): Promise<void> {
     if (this.pingTimer) {
       clearInterval(this.pingTimer);
@@ -113,6 +117,8 @@ export class TabletBridge {
         clients: server.clients.size,
       });
 
+      this.broadcast({ type: "status", data: { connectedTablets: server.clients.size } });
+
       client.on("pong", () => {
         client.isAlive = true;
       });
@@ -122,6 +128,8 @@ export class TabletBridge {
           remoteAddress,
           clients: server.clients.size,
         });
+
+        this.broadcast({ type: "status", data: { connectedTablets: server.clients.size } });
       });
 
       client.on("error", (error) => {
