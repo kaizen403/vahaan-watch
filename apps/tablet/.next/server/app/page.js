@@ -1,0 +1,13 @@
+var R=require("../chunks/ssr/[turbopack]_runtime.js")("server/app/page.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0l3f6b9._.js")
+R.c("server/chunks/ssr/003-_next_dist_esm_build_templates_app-page_0p4.gbh.js")
+R.c("server/chunks/ssr/[root-of-the-server]__04qo454._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0e8qeml._.js")
+R.c("server/chunks/ssr/sibi_adarecog_apps_tablet_src_app_layout_tsx_0cufk_8._.js")
+R.c("server/chunks/ssr/003-_next_dist_client_components_11n5khv._.js")
+R.c("server/chunks/ssr/003-_next_dist_client_components_builtin_forbidden_0h178x9.js")
+R.c("server/chunks/ssr/003-_next_dist_client_components_builtin_unauthorized_05nb7qd.js")
+R.c("server/chunks/ssr/003-_next_dist_client_components_builtin_global-error_079szpt.js")
+R.c("server/chunks/ssr/sibi_adarecog_apps_tablet__next-internal_server_app_page_actions_0ri~wav.js")
+R.m(5964)
+module.exports=R.m(5964).exports

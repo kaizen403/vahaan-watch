@@ -1,0 +1,11 @@
+{
+  "/(app)/alerts/page": "/alerts",
+  "/(app)/analytics/page": "/analytics",
+  "/(app)/dashboard/page": "/dashboard",
+  "/(app)/hitlists/page": "/hitlists",
+  "/(app)/settings/page": "/settings",
+  "/(app)/startup/page": "/startup",
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/page": "/"
+}

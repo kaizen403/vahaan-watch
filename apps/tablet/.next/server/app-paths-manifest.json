@@ -1,0 +1,11 @@
+{
+  "/(app)/alerts/page": "app/(app)/alerts/page.js",
+  "/(app)/analytics/page": "app/(app)/analytics/page.js",
+  "/(app)/dashboard/page": "app/(app)/dashboard/page.js",
+  "/(app)/hitlists/page": "app/(app)/hitlists/page.js",
+  "/(app)/settings/page": "app/(app)/settings/page.js",
+  "/(app)/startup/page": "app/(app)/startup/page.js",
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/page": "app/page.js"
+}

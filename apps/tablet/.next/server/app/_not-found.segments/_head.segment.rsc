@@ -1,0 +1,5 @@
+1:"$Sreact.fragment"
+2:I[92979,["/_next/static/chunks/0uwi_0~26qbg-.js"],"ViewportBoundary"]
+3:I[92979,["/_next/static/chunks/0uwi_0~26qbg-.js"],"MetadataBoundary"]
+4:"$Sreact.suspense"
+0:{"rsc":["$","$1","h",{"children":[["$","meta",null,{"name":"robots","content":"noindex"}],["$","$L2",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]}],["$","div",null,{"hidden":true,"children":["$","$L3",null,{"children":["$","$4",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"Tablet — Vehicle Surveillance"}],["$","meta","1",{"name":"description","content":"Field tablet interface for real-time ANPR surveillance and alert monitoring"}]]}]}]}],null]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"wy6swzDM0ZBiXL_CiVbZE"}
