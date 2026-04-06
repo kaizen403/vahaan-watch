@@ -57,6 +57,7 @@ ingestRoutes.post("/api/ingest/detections", async (c) => {
       payload: body,
     },
   });
+  await prisma.$executeRaw`SELECT pg_notify('outbox_new_job', 'trigger')`;
 
   await writeAuditLog({
     actorDevice: device,
@@ -112,6 +113,7 @@ ingestRoutes.post("/api/ingest/match-events", async (c) => {
       payload: body,
     },
   });
+  await prisma.$executeRaw`SELECT pg_notify('outbox_new_job', 'trigger')`;
 
   await writeAuditLog({
     actorDevice: device,

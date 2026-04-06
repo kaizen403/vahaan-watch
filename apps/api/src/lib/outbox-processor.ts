@@ -4,10 +4,11 @@ import {
   sendToTabletIds,
   sendToWorkstationConnections,
 } from "./tablet-sessions.js";
+import { createPgListener } from "./pg-listener.js";
 
 const logger = createLogger("outbox-processor");
 
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 30_000;
 const BATCH_SIZE = 50;
 const MAX_ATTEMPTS = 10;
 const BASE_RETRY_DELAY_MS = 5000;
@@ -214,6 +215,26 @@ export async function startOutboxProcessor(): Promise<void> {
     data: { status: "PENDING", availableAt: new Date() },
   });
   logger.info("stale PROCESSING jobs reset to PENDING");
+
+  // Debounced trigger to batch rapid job creates
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  function triggerBatch(): void {
+    if (debounceTimer) return;
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      void poll();
+    }, 50);
+  }
+
+  // Start pg listener for push delivery
+  const dbUrl = process.env.DATABASE_URL;
+  if (dbUrl) {
+    createPgListener(dbUrl, ["outbox_new_job"], () => triggerBatch()).catch(
+      (err) => {
+        logger.warn({ err }, "pg listener failed to start — polling-only mode");
+      },
+    );
+  }
 
   logger.info({ pollIntervalMs: POLL_INTERVAL_MS, batchSize: BATCH_SIZE }, "outbox processor started");
   void poll();

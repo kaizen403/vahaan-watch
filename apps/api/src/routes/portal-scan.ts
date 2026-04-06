@@ -130,6 +130,8 @@ portalScanRoutes.post("/api/portal/scan", async (c) => {
     });
   }
 
+  await prisma.$executeRaw`SELECT pg_notify('outbox_new_job', 'trigger')`;
+
   await writeAuditLog({
     actorUser: user,
     action: "portal.scan.completed",
