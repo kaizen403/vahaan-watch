@@ -80,34 +80,23 @@ portalScanRoutes.post("/api/portal/scan", async (c) => {
     },
   });
 
-  const activeHitlists = await prisma.hitlist.findMany({
-    where: { status: "ACTIVE" },
-    select: { id: true, currentVersionNumber: true },
+  const matchingEntries = await prisma.hitlistEntry.findMany({
+    where: {
+      plateNormalized: normalizedPlate,
+      status: "active",
+      hitlistVersion: {
+        hitlist: { status: "ACTIVE" },
+      },
+    },
+    select: {
+      id: true,
+      plateOriginal: true,
+      priority: true,
+      reasonSummary: true,
+      caseReference: true,
+      sourceAgency: true,
+    },
   });
-
-  const matchingEntries = [];
-
-  for (const hl of activeHitlists) {
-    const entries = await prisma.hitlistEntry.findMany({
-      where: {
-        plateNormalized: normalizedPlate,
-        status: "active",
-        hitlistVersion: {
-          hitlistId: hl.id,
-          versionNumber: hl.currentVersionNumber,
-        },
-      },
-      select: {
-        id: true,
-        plateOriginal: true,
-        priority: true,
-        reasonSummary: true,
-        caseReference: true,
-        sourceAgency: true,
-      },
-    });
-    matchingEntries.push(...entries);
-  }
 
   const matchEvents = [];
 
