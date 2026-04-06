@@ -65,4 +65,56 @@ describe("PlateMatcher", () => {
       normalizedPlate: "MH12XX9999",
     });
   });
+
+  describe("fuzzy matching", () => {
+    it("does NOT do fuzzy match when disabled (default)", () => {
+      const db = {
+        findMatchingEntries: (plate: string) =>
+          plate === "AB0123C" ? [createEntry({ plateNormalized: "AB0123C" })] : [],
+      } as unknown as DbClient;
+      const matcher = new PlateMatcher(db);
+      const result = matcher.match("ABO123C");
+      expect(result.matched).toBe(false);
+      expect(result.fuzzyMatch).toBeUndefined();
+    });
+
+    it("corrects O→0 confusion when fuzzy enabled", () => {
+      const db = {
+        findMatchingEntries: (plate: string) =>
+          plate === "AB0123C" ? [createEntry({ plateNormalized: "AB0123C" })] : [],
+      } as unknown as DbClient;
+      const matcher = new PlateMatcher(db, true);
+      const result = matcher.match("ABO123C");
+      expect(result.matched).toBe(true);
+      expect(result.fuzzyMatch).toBe(true);
+    });
+
+    it("prefers exact match over fuzzy match", () => {
+      const exactEntry = createEntry({ plateNormalized: "ABO123C" });
+      const fuzzyEntry = createEntry({ plateNormalized: "AB0123C" });
+      const db = {
+        findMatchingEntries: (plate: string) => {
+          if (plate === "ABO123C") return [exactEntry];
+          if (plate === "AB0123C") return [fuzzyEntry];
+          return [];
+        },
+      } as unknown as DbClient;
+      const matcher = new PlateMatcher(db, true);
+      const result = matcher.match("ABO123C");
+      expect(result.matched).toBe(true);
+      expect(result.fuzzyMatch).toBeUndefined();
+      expect(result.entries).toEqual([exactEntry]);
+    });
+
+    it("corrects 1→I confusion when fuzzy enabled", () => {
+      const db = {
+        findMatchingEntries: (plate: string) =>
+          plate === "AB1234" ? [createEntry({ plateNormalized: "AB1234" })] : [],
+      } as unknown as DbClient;
+      const matcher = new PlateMatcher(db, true);
+      const result = matcher.match("ABI234");
+      expect(result.matched).toBe(true);
+      expect(result.fuzzyMatch).toBe(true);
+    });
+  });
 });

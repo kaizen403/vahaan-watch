@@ -68,6 +68,7 @@ export function loadConfig(): WorkstationConfig {
     outboxRetryMaxDelayMs: int("OUTBOX_RETRY_MAX_DELAY_MS", 300000),
     tabletWsPort: int("TABLET_WS_PORT", 8089),
     ttsEnabled: bool("TTS_ENABLED", true),
+    fuzzyMatchEnabled: bool("FUZZY_MATCH_ENABLED", false),
     logLevel: optional("LOG_LEVEL", "info"),
   });
 }

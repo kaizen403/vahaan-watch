@@ -213,6 +213,7 @@ export interface MatchResult {
   matched: boolean;
   entries: LocalHitlistEntry[];
   normalizedPlate: string;
+  fuzzyMatch?: boolean;
 }
 
 export interface AlertPayload {
@@ -298,5 +299,6 @@ export interface WorkstationConfig {
   outboxRetryMaxDelayMs: number;
   tabletWsPort: number;
   ttsEnabled: boolean;
+  fuzzyMatchEnabled: boolean;
   logLevel: string;
 }
