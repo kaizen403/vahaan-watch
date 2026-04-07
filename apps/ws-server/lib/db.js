@@ -85,6 +85,18 @@ async function ensureSchema() {
     END $$
   `);
 
+  const { rows } = await pool.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_schema = '${DB_SCHEMA}'
+      AND table_name = '${DETECTIONS_COLLECTION}'
+      AND column_name = 'detected_at'
+  `);
+  if (rows.length === 0) {
+    await pool.query(
+      `ALTER TABLE ${tableRef(DETECTIONS_COLLECTION)} ADD COLUMN detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+    );
+  }
+
   await pool.query(`
     CREATE INDEX IF NOT EXISTS ${BLACKLIST_COLLECTION}_created_at_idx
     ON ${tableRef(BLACKLIST_COLLECTION)} (created_at DESC)
