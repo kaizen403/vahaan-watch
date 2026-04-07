@@ -14,6 +14,7 @@ import { telemetryRoutes } from "./routes/telemetry.js";
 import { syncRoutes } from "./routes/sync.js";
 import { portalScanRoutes } from "./routes/portal-scan.js";
 import { workstationStatsRoutes } from "./routes/workstation-stats.js";
+import { workstationRoutes } from "./routes/workstations.js";
 import { sessionContext, requireRole, requireUser } from "./middleware/session.js";
 import { requireDevice } from "./middleware/device-auth.js";
 import { securityHeaders, bodyLimit } from "./middleware/security.js";
@@ -70,6 +71,12 @@ export function createApp() {
   app.use("/api/detections", requireUser, requireRole("admin", "operator"));
   app.use("/api/analytics/*", requireUser, requireRole("admin", "operator"));
   app.route("/", workstationStatsRoutes);
+
+  app.use("/api/workstations/auth", authRateLimit);
+  app.use("/api/workstations/tablet-pair", authRateLimit);
+  app.use("/api/workstations/:id", requireUser, requireRole("admin"));
+  app.use("/api/workstations", requireUser, requireRole("admin"));
+  app.route("/", workstationRoutes);
 
   app.use("/api/portal/scan", requireUser, requireRole("admin", "operator", "scanner"));
   app.route("/", portalScanRoutes);

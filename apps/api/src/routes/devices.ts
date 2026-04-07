@@ -63,6 +63,8 @@ deviceRoutes.post("/api/devices/register", async (c) => {
     const workstation = await prisma.workstation.create({
       data: {
         deviceId,
+        address: deviceId,
+        passwordHash: "",
         name,
         description,
         status: "ACTIVE",

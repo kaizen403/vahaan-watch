@@ -20,6 +20,8 @@ async function getOrCreatePortalWorkstation(): Promise<string> {
     update: {},
     create: {
       deviceId: PORTAL_SCANNER_DEVICE_ID,
+      address: PORTAL_SCANNER_DEVICE_ID,
+      passwordHash: "",
       name: "Portal Scanner",
       description: "Virtual workstation for browser-based scanning",
       status: "ACTIVE",

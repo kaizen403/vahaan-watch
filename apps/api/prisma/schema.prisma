@@ -138,6 +138,8 @@ model Verification {
 model Workstation {
   id             String          @id @default(cuid())
   deviceId       String          @unique
+  address        String          @unique
+  passwordHash   String
   name           String
   description    String?
   status         DeviceStatus    @default(PENDING)
