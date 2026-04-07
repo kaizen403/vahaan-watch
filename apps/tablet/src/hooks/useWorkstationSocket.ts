@@ -65,6 +65,7 @@ export function useWorkstationSocket(workstationUrl: string | null) {
       ws.onopen = () => {
         if (!mountedRef.current) return;
         backoffRef.current = INITIAL_BACKOFF_MS;
+        ws.send(JSON.stringify({ type: "identify", role: "tablet" }));
         setState((prev) => ({
           ...prev,
           connected: true,

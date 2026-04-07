@@ -312,4 +312,7 @@ export interface WorkstationConfig {
   rtspReconnectMaxAttemptsPerSession: number;
   rtspStreamValidationIntervalMs: number;
   cameraSources: Array<{ url: string; label: string; fps: number }>;
+  carmenBinaryPath: string;
+  carmenApiKey: string;
+  carmenRegion: string;
 }

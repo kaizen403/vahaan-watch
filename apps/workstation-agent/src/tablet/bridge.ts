@@ -2,8 +2,11 @@ import { WebSocket, WebSocketServer } from "ws";
 import { createLogger } from "../logger.js";
 import type { TabletEvent, WorkstationConfig } from "../types.js";
 
+type ClientRole = "tablet" | "workstation" | "unknown";
+
 interface TabletClientSocket extends WebSocket {
   isAlive: boolean;
+  clientRole: ClientRole;
 }
 
 const logger = createLogger("tablet-bridge");
@@ -72,7 +75,7 @@ export class TabletBridge {
   }
 
   public connectedCount(): number {
-    return this.server ? this.server.clients.size : 0;
+    return this.tabletCount();
   }
 
   public async stop(): Promise<void> {
@@ -106,34 +109,59 @@ export class TabletBridge {
     logger.info("tablet bridge stopped", { port: this.config.tabletWsPort });
   }
 
+  private tabletCount(): number {
+    if (!this.server) return 0;
+    let count = 0;
+    for (const socket of this.server.clients) {
+      const client = socket as TabletClientSocket;
+      if (client.readyState === WebSocket.OPEN && client.clientRole === "tablet") {
+        count++;
+      }
+    }
+    return count;
+  }
+
   private attachServerHandlers(server: WebSocketServer): void {
     server.on("connection", (socket, request) => {
       const client = socket as TabletClientSocket;
       const remoteAddress = request.socket.remoteAddress ?? "unknown";
       client.isAlive = true;
+      client.clientRole = "unknown";
 
-      logger.info("tablet connected", {
+      logger.info("client connected to bridge", {
         remoteAddress,
         clients: server.clients.size,
       });
 
-      this.broadcast({ type: "status", data: { connectedTablets: server.clients.size } });
+      this.broadcast({ type: "status", data: { connectedTablets: this.tabletCount() } });
+
+      client.on("message", (rawData) => {
+        try {
+          const msg = JSON.parse(rawData.toString()) as { type: string; role?: string };
+          if (msg.type === "identify" && (msg.role === "tablet" || msg.role === "workstation")) {
+            client.clientRole = msg.role;
+            logger.debug("client identified", { remoteAddress, role: msg.role });
+            this.broadcast({ type: "status", data: { connectedTablets: this.tabletCount() } });
+          }
+        } catch {
+        }
+      });
 
       client.on("pong", () => {
         client.isAlive = true;
       });
 
       client.on("close", () => {
-        logger.info("tablet disconnected", {
+        logger.info("client disconnected from bridge", {
           remoteAddress,
           clients: server.clients.size,
         });
 
-        this.broadcast({ type: "status", data: { connectedTablets: server.clients.size } });
+        this.broadcast({ type: "status", data: { connectedTablets: this.tabletCount() } });
       });
 
       client.on("error", (error) => {
-        logger.warn("tablet socket error", {
+        logger.warn("client socket error", {
           remoteAddress,
           error: toErrorMessage(error),
         });
@@ -159,7 +187,7 @@ export class TabletBridge {
       for (const socket of server.clients) {
         const client = socket as TabletClientSocket;
         if (!client.isAlive) {
-          logger.warn("terminating stale tablet connection");
+          logger.warn("terminating stale connection");
           client.terminate();
           continue;
         }
