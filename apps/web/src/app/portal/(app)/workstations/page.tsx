@@ -105,8 +105,8 @@ export default function WorkstationsPage() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await api.get<ApiResp<{ workstations: Workstation[] }>>("/api/workstations");
-      if (resp.success) setWorkstations(resp.data.workstations);
+      const resp = await api.get<ApiResp<Workstation[]>>("/api/workstations");
+      if (resp.success) setWorkstations(resp.data ?? []);
       else setError(resp.error);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load workstations");
@@ -213,9 +213,10 @@ export default function WorkstationsPage() {
     }
   }
 
-  const totalCount = workstations.length;
-  const onlineCount = workstations.filter((w) => w.status === "ACTIVE").length;
-  const offlineCount = workstations.filter((w) => w.status !== "ACTIVE").length;
+  const items = workstations ?? [];
+  const totalCount = items.length;
+  const onlineCount = items.filter((w) => w.status === "ACTIVE").length;
+  const offlineCount = items.filter((w) => w.status !== "ACTIVE").length;
 
   return (
     <div className="space-y-6">
@@ -427,7 +428,7 @@ export default function WorkstationsPage() {
         <div className="flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : workstations.length === 0 ? (
+      ) : items.length === 0 ? (
         <div className="glass rounded-xl p-12 flex flex-col items-center justify-center text-center min-h-[300px]">
           <div className="glass rounded-full p-6 mb-4">
             <Monitor className="h-10 w-10 text-muted-foreground" />
@@ -452,7 +453,7 @@ export default function WorkstationsPage() {
                 </tr>
               </thead>
               <tbody>
-                {workstations.map((ws) => {
+                {items.map((ws) => {
                   const badge = statusBadge(ws.status);
                   const BadgeIcon = badge.icon;
                   return (
