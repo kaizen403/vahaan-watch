@@ -14,9 +14,11 @@ const RESTART_BACKOFF_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 
 function ffmpegStreamArgs(source: string, fps: number): string[] {
   const isRtsp = source.startsWith("rtsp://") || source.startsWith("rtsps://");
+  const isFile = !isRtsp && !source.startsWith("http");
   return [
     "-hide_banner", "-loglevel", "error",
     ...(isRtsp ? ["-rtsp_transport", "tcp"] : []),
+    ...(isFile ? ["-stream_loop", "-1"] : []),
     "-i", source,
     "-an", "-vf", `fps=${fps}`,
     "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1",
