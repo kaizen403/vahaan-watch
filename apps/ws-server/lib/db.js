@@ -78,6 +78,14 @@ async function ensureSchema() {
   `);
 
   await pool.query(`
+    DO $$ BEGIN
+      ALTER TABLE ${tableRef(DETECTIONS_COLLECTION)}
+        ADD COLUMN IF NOT EXISTS detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    EXCEPTION WHEN duplicate_column THEN NULL;
+    END $$
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS ${BLACKLIST_COLLECTION}_created_at_idx
     ON ${tableRef(BLACKLIST_COLLECTION)} (created_at DESC)
   `);
