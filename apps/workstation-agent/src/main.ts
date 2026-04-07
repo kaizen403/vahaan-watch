@@ -602,6 +602,12 @@ export async function main(): Promise<void> {
       while (!shuttingDown) {
         try {
           const frame = await camera.grabFrame();
+
+          if (useCarmenCloud && !tabletBridge.isScanningActive()) {
+            await sleep(loopDelayMs);
+            continue;
+          }
+
           const detections = await ocr.recognize(frame.data);
 
           for (const result of detections) {

@@ -349,6 +349,10 @@ export default function WorkstationScanPage() {
     setErrorMsg("");
     setStatus("connecting");
 
+    if (bridgeRef.current?.readyState === WebSocket.OPEN) {
+      bridgeRef.current.send(JSON.stringify({ type: "scanStart" }));
+    }
+
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -410,6 +414,9 @@ export default function WorkstationScanPage() {
   }
 
   function stopScanning() {
+    if (bridgeRef.current?.readyState === WebSocket.OPEN) {
+      bridgeRef.current.send(JSON.stringify({ type: "scanStop" }));
+    }
     teardown();
     setStatus("idle");
   }

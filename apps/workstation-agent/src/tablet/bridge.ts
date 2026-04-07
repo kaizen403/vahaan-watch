@@ -18,6 +18,7 @@ function toErrorMessage(error: unknown): string {
 export class TabletBridge {
   private server: WebSocketServer | null = null;
   private pingTimer: NodeJS.Timeout | null = null;
+  private scanningActive = false;
 
   public constructor(private readonly config: Pick<WorkstationConfig, "tabletWsPort">) {}
 
@@ -72,6 +73,10 @@ export class TabletBridge {
     }
 
     logger.debug("tablet event broadcast", { eventType: event.type, delivered });
+  }
+
+  public isScanningActive(): boolean {
+    return this.scanningActive;
   }
 
   public connectedCount(): number {
@@ -142,6 +147,12 @@ export class TabletBridge {
             client.clientRole = msg.role;
             logger.debug("client identified", { remoteAddress, role: msg.role });
             this.broadcast({ type: "status", data: { connectedTablets: this.tabletCount() } });
+          } else if (msg.type === "scanStart") {
+            this.scanningActive = true;
+            logger.info("scan session started");
+          } else if (msg.type === "scanStop") {
+            this.scanningActive = false;
+            logger.info("scan session stopped");
           }
         } catch {
         }
@@ -152,6 +163,11 @@ export class TabletBridge {
       });
 
       client.on("close", () => {
+        if (client.clientRole === "workstation") {
+          this.scanningActive = false;
+          logger.info("scan session stopped (workstation disconnected)");
+        }
+
         logger.info("client disconnected from bridge", {
           remoteAddress,
           clients: server.clients.size,
