@@ -171,6 +171,10 @@ hitlistRoutes.post("/api/hitlists/:hitlistId/versions", async (c) => {
       ownerContact: encryptOptional(typeof entry.ownerContact === "string" ? entry.ownerContact : null),
       extendedCaseNotes: encryptOptional(typeof entry.extendedCaseNotes === "string" ? entry.extendedCaseNotes : null),
     });
+
+    if (!normalizedEntries[normalizedEntries.length - 1]!.plateNormalized) {
+      return fail(c, 400, `entries[${index}].plateOriginal must contain at least 1 alphanumeric character.`);
+    }
   }
 
   const version = await prisma.hitlistVersion.create({

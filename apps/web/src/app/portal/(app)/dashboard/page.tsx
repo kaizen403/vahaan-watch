@@ -68,6 +68,14 @@ interface HitlistItem {
   createdAt: string;
 }
 
+interface WorkstationStats {
+  detectionsToday: number;
+  matchesToday: number;
+  totalDetections: number;
+  totalMatches: number;
+  lastSeenAt: string | null;
+}
+
 type ApiResp<T> = { success: true; data: T } | { success: false; error: string };
 
 function getStatusColor(status: string): string {
@@ -157,6 +165,7 @@ function StatCard({
 export default function DashboardPage() {
   const [devices, setDevices] = useState<DevicesData | null>(null);
   const [hitlists, setHitlists] = useState<HitlistItem[] | null>(null);
+  const [wsStats, setWsStats] = useState<Map<string, WorkstationStats>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -176,6 +185,18 @@ export default function DashboardPage() {
         else setError(devResp.error);
         if (hlResp.success) setHitlists(hlResp.data);
         else if (!devResp.success) setError(hlResp.error);
+
+        const wsList = devResp.success ? devResp.data.workstations : [];
+        const statsMap = new Map<string, WorkstationStats>();
+        await Promise.all(
+          wsList.map(async (ws) => {
+            try {
+              const s = await api.get<ApiResp<WorkstationStats>>(`/api/workstations/${ws.id}/stats`);
+              if (s.success) statsMap.set(ws.id, s.data);
+            } catch { /* non-fatal */ }
+          })
+        );
+        if (!cancelled) setWsStats(statsMap);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {
@@ -382,6 +403,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {wsList.map((workstation) => {
                 const statusMeta = workstationHealthMeta(workstation.status);
+                const stats = wsStats.get(workstation.id);
 
                 return (
                   <Card key={workstation.id} className="glass glass-hover transition-all border-border/60">
@@ -405,6 +427,19 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between text-sm gap-4">
                           <span className="text-muted-foreground">Last seen</span>
                           <span className="text-foreground font-medium">{timeAgo(workstation.lastSeenAt)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm gap-4">
+                          <span className="text-muted-foreground">Scans today</span>
+                          <span className="text-foreground font-medium">{stats?.detectionsToday ?? "—"}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm gap-4">
+                          <span className="text-muted-foreground">Matches</span>
+                          <span className="text-foreground font-medium flex items-center gap-1.5">
+                            {stats?.matchesToday ?? "—"}
+                            {(stats?.matchesToday ?? 0) > 0 && (
+                              <Badge variant="destructive" className="text-xs">{stats!.matchesToday}</Badge>
+                            )}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -436,7 +471,7 @@ export default function DashboardPage() {
         ) : (
           <div className="divide-y divide-border">
             {recentActivity.map((h) => {
-              const latestEntries = h.versions[0]?.entries.length ?? 0;
+              const latestEntries = h.versions?.[0]?.entries?.length ?? 0;
               return (
                 <div key={h.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                   <div className="flex items-center gap-3 min-w-0">

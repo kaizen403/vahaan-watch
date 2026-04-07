@@ -135,3 +135,68 @@ deviceRoutes.post("/api/devices/pairings", async (c) => {
 
   return ok(c, pairing, 201);
 });
+
+deviceRoutes.post("/api/devices/:deviceId/rotate-token", async (c) => {
+  const user = c.get("user");
+  const deviceId = c.req.param("deviceId");
+
+  const workstation = await prisma.workstation.findUnique({
+    where: { deviceId },
+    include: { tokens: { where: { revokedAt: null }, orderBy: { createdAt: "desc" }, take: 1 } },
+  });
+  const tablet = workstation ? null : await prisma.tablet.findUnique({
+    where: { deviceId },
+    include: { tokens: { where: { revokedAt: null }, orderBy: { createdAt: "desc" }, take: 1 } },
+  });
+
+  if (!workstation && !tablet) {
+    return fail(c, 404, "Device not found.");
+  }
+
+  const now = new Date();
+  const issued = issueDeviceToken();
+
+  if (workstation) {
+    await prisma.deviceToken.updateMany({
+      where: { workstationId: workstation.id, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    await prisma.deviceToken.create({
+      data: {
+        tokenHash: issued.tokenHash,
+        label: "rotated",
+        deviceType: "WORKSTATION",
+        workstationId: workstation.id,
+      },
+    });
+    await writeAuditLog({
+      actorUser: user,
+      action: "device.token.rotated",
+      entityType: "workstation",
+      entityId: workstation.id,
+      metadata: { deviceId },
+    });
+    return ok(c, { deviceType: "WORKSTATION", deviceToken: issued.rawToken });
+  }
+
+  await prisma.deviceToken.updateMany({
+    where: { tabletId: tablet!.id, revokedAt: null },
+    data: { revokedAt: now },
+  });
+  await prisma.deviceToken.create({
+    data: {
+      tokenHash: issued.tokenHash,
+      label: "rotated",
+      deviceType: "TABLET",
+      tabletId: tablet!.id,
+    },
+  });
+  await writeAuditLog({
+    actorUser: user,
+    action: "device.token.rotated",
+    entityType: "tablet",
+    entityId: tablet!.id,
+    metadata: { deviceId },
+  });
+  return ok(c, { deviceType: "TABLET", deviceToken: issued.rawToken });
+});

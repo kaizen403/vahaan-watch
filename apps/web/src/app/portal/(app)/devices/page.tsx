@@ -377,11 +377,28 @@ export default function DevicesPage() {
                     return items.map((d) => {
                       const badge = statusBadge(d.status);
                       const BadgeIcon = badge.icon;
+                      const pairedTablets = tab === "workstations"
+                        ? pairings
+                            .filter((p) => p.workstationId === d.id && !p.unpairedAt)
+                            .map((p) => tablets.find((t) => t.id === p.tabletId))
+                            .filter((t): t is TabletDevice => t !== undefined)
+                        : [];
                       return (
                         <tr key={d.id} className="border-b border-border last:border-0">
                           <td className="px-4 py-3">
                             <div className="text-foreground font-medium">{d.name}</div>
                             {d.description && <div className="text-xs text-muted-foreground truncate max-w-[200px]">{d.description}</div>}
+                            {tab === "workstations" && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {pairedTablets.length === 0 ? (
+                                  <span className="text-xs text-muted-foreground">No tablets paired</span>
+                                ) : (
+                                  pairedTablets.map((tablet) => (
+                                    <Badge key={tablet.id} variant="secondary" className="text-xs">{tablet.name}</Badge>
+                                  ))
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 font-mono text-muted-foreground text-xs">{d.deviceId}</td>
                            <td className="px-4 py-3">

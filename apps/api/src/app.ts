@@ -52,6 +52,7 @@ export function createApp() {
   app.route("/", eventRoutes);
 
   app.use("/api/devices/register", deviceRegRateLimit);
+  app.use("/api/devices/:deviceId/rotate-token", requireUser, requireRole("admin"));
   app.use("/api/devices", requireUser, requireRole("admin", "operator"));
   app.use("/api/devices/pairings", requireUser, requireRole("admin"));
   app.route("/", deviceRoutes);
@@ -67,6 +68,7 @@ export function createApp() {
 
   app.use("/api/workstations/*/stats", requireUser, requireRole("admin", "operator"));
   app.use("/api/detections", requireUser, requireRole("admin", "operator"));
+  app.use("/api/analytics/*", requireUser, requireRole("admin", "operator"));
   app.route("/", workstationStatsRoutes);
 
   app.use("/api/portal/scan", requireUser, requireRole("admin", "operator", "scanner"));

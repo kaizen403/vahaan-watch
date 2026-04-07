@@ -1,3 +1,5 @@
+import { writeFileSync, mkdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { CentralApiClient } from "../api/client.js";
 import { DbClient } from "../db/client.js";
 import { createLogger } from "../logger.js";
@@ -74,6 +76,20 @@ export class HitlistDownloader {
         cursorState[hitlistId] = response.currentVersionNumber;
         this.persistCursorState(cursorState);
         summary.synced += 1;
+
+        try {
+          const snapshotDir = resolve(process.cwd(), "data", "hitlist-snapshots");
+          mkdirSync(snapshotDir, { recursive: true });
+          const snapshotPath = resolve(snapshotDir, `${hitlistId}.json`);
+          writeFileSync(snapshotPath, JSON.stringify({
+            hitlistId,
+            versionNumber: response.currentVersionNumber,
+            entries: response.version.entries,
+            savedAt: new Date().toISOString(),
+          }), "utf-8");
+        } catch (snapErr) {
+          logger.warn("hitlist snapshot write failed (non-fatal)", { hitlistId, error: snapErr instanceof Error ? snapErr.message : String(snapErr) });
+        }
 
         logger.info("hitlist synced", {
           hitlistId,

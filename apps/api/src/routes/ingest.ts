@@ -26,6 +26,12 @@ ingestRoutes.post("/api/ingest/detections", async (c) => {
     return fail(c, 400, "occurredAt must be a valid ISO date string.");
   }
 
+  const PLATE_REGEX = /^[A-Z0-9]{1,20}$/;
+  const normalizedPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!PLATE_REGEX.test(normalizedPlate)) {
+    return fail(c, 400, "plate must contain at least 1 alphanumeric character.");
+  }
+
   const existing = await prisma.detection.findUnique({ where: { externalEventId } });
   if (existing) {
     return ok(c, existing);

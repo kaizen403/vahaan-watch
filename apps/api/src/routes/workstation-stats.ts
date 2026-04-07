@@ -97,3 +97,74 @@ workstationStatsRoutes.get("/api/detections", async (c) => {
 
   return ok(c, { detections, total });
 });
+
+workstationStatsRoutes.get("/api/analytics/summary", async (c) => {
+  const workstationId = c.req.query("workstationId")?.trim() || undefined;
+  const from = c.req.query("from") ? new Date(c.req.query("from")!) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const to = c.req.query("to") ? new Date(c.req.query("to")!) : new Date();
+
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+    return fail(c, 400, "from and to must be valid ISO date strings.");
+  }
+
+  const workstationFilter = workstationId ? { workstationId } : {};
+
+  // Totals
+  const [totalDetections, totalMatches, detectionsInRange, matchesInRange] = await Promise.all([
+    prisma.detection.count({ where: workstationFilter }),
+    prisma.matchEvent.count({ where: workstationFilter }),
+    prisma.detection.count({ where: { ...workstationFilter, occurredAt: { gte: from, lte: to } } }),
+    prisma.matchEvent.count({ where: { ...workstationFilter, createdAt: { gte: from, lte: to } } }),
+  ]);
+
+  // Per-workstation breakdown
+  const workstations = await prisma.workstation.findMany({
+    where: workstationId ? { id: workstationId } : undefined,
+    select: { id: true, name: true, status: true, lastSeenAt: true },
+    orderBy: { name: "asc" },
+  });
+
+  const byWorkstation = await Promise.all(
+    workstations.map(async (ws) => {
+      const [wsDetections, wsMatches] = await Promise.all([
+        prisma.detection.count({ where: { workstationId: ws.id, occurredAt: { gte: from, lte: to } } }),
+        prisma.matchEvent.count({ where: { workstationId: ws.id, createdAt: { gte: from, lte: to } } }),
+      ]);
+      return {
+        workstationId: ws.id,
+        name: ws.name,
+        status: ws.status,
+        lastSeenAt: ws.lastSeenAt,
+        detectionsInRange: wsDetections,
+        matchesInRange: wsMatches,
+        hitRate: wsDetections > 0 ? wsMatches / wsDetections : 0,
+      };
+    })
+  );
+
+  // Daily breakdown for chart
+  const days: Array<{ date: string; detections: number; matches: number }> = [];
+  const cursor = new Date(from);
+  cursor.setUTCHours(0, 0, 0, 0);
+  while (cursor <= to) {
+    const dayStart = new Date(cursor);
+    const dayEnd = new Date(cursor);
+    dayEnd.setUTCHours(23, 59, 59, 999);
+    const [d, m] = await Promise.all([
+      prisma.detection.count({ where: { ...workstationFilter, occurredAt: { gte: dayStart, lte: dayEnd } } }),
+      prisma.matchEvent.count({ where: { ...workstationFilter, createdAt: { gte: dayStart, lte: dayEnd } } }),
+    ]);
+    days.push({ date: cursor.toISOString().split("T")[0]!, detections: d, matches: m });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return ok(c, {
+    totalDetections,
+    totalMatches,
+    detectionsInRange,
+    matchesInRange,
+    hitRate: detectionsInRange > 0 ? matchesInRange / detectionsInRange : 0,
+    byWorkstation,
+    daily: days,
+  });
+});
