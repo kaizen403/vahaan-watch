@@ -51,10 +51,12 @@ workstationStatsRoutes.get("/api/workstations/:workstationId/stats", async (c) =
 
 workstationStatsRoutes.get("/api/detections", async (c) => {
   const workstationId = c.req.query("workstationId")?.trim() || undefined;
+  const plate = c.req.query("plate")?.trim() || undefined;
   const from = parseIsoDate(c.req.query("from"));
   const to = parseIsoDate(c.req.query("to"));
+  const page = parseNonNegativeInt(c.req.query("page"), 1);
   const limit = parseNonNegativeInt(c.req.query("limit"), 50);
-  const offset = parseNonNegativeInt(c.req.query("offset"), 0);
+  const offset = parseNonNegativeInt(c.req.query("offset"), undefined as unknown as number);
 
   if (from === undefined || to === undefined) {
     return fail(c, 400, "from and to must be valid ISO date strings.");
@@ -68,34 +70,35 @@ workstationStatsRoutes.get("/api/detections", async (c) => {
     return fail(c, 400, "limit must be a positive integer.");
   }
 
-  if (offset === null) {
-    return fail(c, 400, "offset must be a non-negative integer.");
+  if (page === null || page < 1) {
+    return fail(c, 400, "page must be a positive integer.");
   }
 
   const clampedLimit = Math.min(limit, 200);
+  const skip = offset ?? ((page - 1) * clampedLimit);
 
-  const where = {
-    workstationId,
-    occurredAt:
-      from || to
-        ? { gte: from ?? undefined, lte: to ?? undefined }
-        : undefined,
-  };
+  const where: Record<string, unknown> = {};
+  if (workstationId) where.workstationId = workstationId;
+  if (plate) where.plate = { contains: plate, mode: "insensitive" };
+  if (from || to) {
+    where.occurredAt = { gte: from ?? undefined, lte: to ?? undefined };
+  }
 
   const [detections, total] = await Promise.all([
     prisma.detection.findMany({
       where,
       include: {
-        workstation: { select: { name: true } },
+        workstation: { select: { name: true, deviceId: true } },
+        matchEvents: { select: { id: true, alertStatus: true }, take: 1 },
       },
       orderBy: { occurredAt: "desc" },
-      skip: offset,
+      skip,
       take: clampedLimit,
     }),
     prisma.detection.count({ where }),
   ]);
 
-  return ok(c, { detections, total });
+  return ok(c, { detections, total, page, limit: clampedLimit });
 });
 
 workstationStatsRoutes.get("/api/analytics/summary", async (c) => {
