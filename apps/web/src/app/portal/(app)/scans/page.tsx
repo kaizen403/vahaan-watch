@@ -14,11 +14,13 @@ import {
   Car,
   ChevronLeft,
   ChevronRight,
-  Download,
   Gauge,
   Globe,
   Loader2,
   Monitor,
+  Radio,
+  RefreshCw,
+  ScanLine,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
@@ -62,18 +64,7 @@ interface Filters {
   plate: string;
   dateFrom: string;
   dateTo: string;
-  country: string;
-  minConfidence: string;
-}
-
-function formatTimestamp(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  workstationId: string;
 }
 
 function timeAgo(dateStr: string): string {
@@ -86,42 +77,52 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function formatTimestamp(dateStr: string): string {
+  return new Date(dateStr).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 function getVehicleSummary(det: Detection): string {
   const parts = [det.color, det.make, det.model, det.category].filter(Boolean);
   return parts.length > 0 ? parts.join(" ") : "—";
 }
 
-export default function SearchPage() {
+export default function ScansPage() {
+  const [detections, setDetections] = useState<Detection[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(30);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     plate: "",
     dateFrom: "",
     dateTo: "",
-    country: "",
-    minConfidence: "",
+    workstationId: "",
   });
   const [activeFilters, setActiveFilters] = useState<Filters>({
     plate: "",
     dateFrom: "",
     dateTo: "",
-    country: "",
-    minConfidence: "",
+    workstationId: "",
   });
-  const [showFilters, setShowFilters] = useState(false);
-  const [detections, setDetections] = useState<Detection[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(30);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const loadRequestIdRef = useRef(0);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasFilters = activeFilters.plate || activeFilters.dateFrom || activeFilters.dateTo || activeFilters.workstationId;
 
   const fetchPage = useCallback(
-    async (pageToLoad: number, filtersToUse: Filters) => {
+    async (pageToLoad: number, filtersToUse: Filters, isRefresh = false) => {
       const requestId = ++loadRequestIdRef.current;
-      setLoading(true);
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
       setError(null);
 
       try {
@@ -132,6 +133,7 @@ export default function SearchPage() {
         if (filtersToUse.plate) params.set("plate", filtersToUse.plate);
         if (filtersToUse.dateFrom) params.set("from", new Date(filtersToUse.dateFrom).toISOString());
         if (filtersToUse.dateTo) params.set("to", new Date(filtersToUse.dateTo + "T23:59:59").toISOString());
+        if (filtersToUse.workstationId) params.set("workstationId", filtersToUse.workstationId);
 
         const resp = await api.get<ApiResp<DetectionsPageData>>(
           `/api/detections?${params.toString()}`,
@@ -146,21 +148,32 @@ export default function SearchPage() {
         setDetections(resp.data.detections);
         setTotal(resp.data.total);
         setPage(pageToLoad);
-        setSearched(true);
       } catch (err) {
         if (requestId !== loadRequestIdRef.current) return;
-        setError(err instanceof Error ? err.message : "Failed to search detections");
+        setError(err instanceof Error ? err.message : "Failed to load scans");
       } finally {
         if (requestId !== loadRequestIdRef.current) return;
         setLoading(false);
+        setRefreshing(false);
       }
     },
     [pageSize],
   );
 
+  useEffect(() => {
+    void fetchPage(1, activeFilters);
+  }, [fetchPage, activeFilters]);
+
   function handleSearch() {
     setActiveFilters({ ...filters });
-    void fetchPage(1, filters);
+    setPage(1);
+  }
+
+  function handleClearFilters() {
+    const cleared: Filters = { plate: "", dateFrom: "", dateTo: "", workstationId: "" };
+    setFilters(cleared);
+    setActiveFilters(cleared);
+    setPage(1);
   }
 
   function handlePageChange(newPage: number) {
@@ -172,34 +185,31 @@ export default function SearchPage() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  const filteredDetections = detections.filter((det) => {
-    if (activeFilters.country && det.country?.toLowerCase() !== activeFilters.country.toLowerCase()) {
-      return false;
-    }
-    if (activeFilters.minConfidence) {
-      const minConf = Number(activeFilters.minConfidence) / 100;
-      if (det.confidence !== null && det.confidence < minConf) return false;
-    }
-    return true;
-  });
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Detection Search</h1>
-          <p className="text-sm text-muted-foreground mt-1">Search and filter plate detections</p>
+          <h1 className="text-2xl font-semibold text-foreground">Scans</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            All plate detections from workstations
+          </p>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={detections.length === 0}
-          title="Export search results"
-          className={cn(detections.length === 0 && "cursor-not-allowed opacity-50")}
-        >
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Radio className="h-3 w-3 animate-pulse text-primary" />
+            {refreshing ? "Refreshing" : "Live"}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void fetchPage(page, activeFilters, true)}
+            disabled={refreshing}
+            className="glass glass-hover"
+          >
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -210,7 +220,7 @@ export default function SearchPage() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleSearch}
+            onClick={() => void fetchPage(page, activeFilters)}
             className="glass glass-hover"
           >
             Retry
@@ -237,6 +247,7 @@ export default function SearchPage() {
             <Button
               type="button"
               onClick={handleSearch}
+              className="shrink-0"
             >
               <Search className="h-4 w-4 mr-1.5" />
               Search
@@ -253,32 +264,47 @@ export default function SearchPage() {
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4 pt-4 border-t border-border">
               <div>
                 <Label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
                   <Calendar className="h-3 w-3" /> From Date
                 </Label>
-                <Input type="date" value={filters.dateFrom} onChange={(e) => updateFilter("dateFrom", e.target.value)} />
+                <Input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(e) => updateFilter("dateFrom", e.target.value)}
+                />
               </div>
               <div>
                 <Label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
                   <Calendar className="h-3 w-3" /> To Date
                 </Label>
-                <Input type="date" value={filters.dateTo} onChange={(e) => updateFilter("dateTo", e.target.value)} />
+                <Input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(e) => updateFilter("dateTo", e.target.value)}
+                />
               </div>
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                  <Globe className="h-3 w-3" /> Country
-                </Label>
-                <Input type="text" placeholder="e.g. IN, US" value={filters.country} onChange={(e) => updateFilter("country", e.target.value)} />
+              <div className="flex items-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClearFilters}
+                  className="glass glass-hover"
+                  disabled={!hasFilters}
+                >
+                  Clear Filters
+                </Button>
               </div>
-              <div>
-                <Label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                  <Gauge className="h-3 w-3" /> Min Confidence
-                </Label>
-                <Input type="number" min="0" max="100" placeholder="0-100" value={filters.minConfidence}
-                  onChange={(e) => updateFilter("minConfidence", e.target.value)} />
-              </div>
+            </div>
+          )}
+
+          {hasFilters && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Showing filtered results</span>
+              <Badge variant="secondary" className="text-[10px]">
+                {total} result{total !== 1 ? "s" : ""}
+              </Badge>
             </div>
           )}
         </CardContent>
@@ -288,30 +314,23 @@ export default function SearchPage() {
         <div className="glass rounded-xl min-h-[400px] flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : !searched ? (
-        <Card className="glass overflow-hidden">
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="glass rounded-full p-4 mb-4">
-              <Search className="h-8 w-8 text-muted-foreground" />
+      ) : detections.length === 0 ? (
+        <div className="glass rounded-xl p-12 flex flex-col items-center justify-center text-center min-h-[400px]">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+            <div className="relative glass rounded-full p-6">
+              <ScanLine className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h3 className="text-foreground font-medium mb-1">Search Detections</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              Enter a plate number or use filters to search detection records from all workstations.
-            </p>
           </div>
-        </Card>
-      ) : filteredDetections.length === 0 ? (
-        <Card className="glass overflow-hidden">
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="glass rounded-full p-4 mb-4">
-              <Car className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-foreground font-medium mb-1">No Results Found</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              No detections match your search criteria. Try a different plate or adjust your filters.
-            </p>
-          </div>
-        </Card>
+          <h2 className="text-lg font-medium text-foreground mb-2">
+            {hasFilters ? "No Matching Scans" : "No Scans Yet"}
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-md">
+            {hasFilters
+              ? "Try adjusting your filters or search criteria."
+              : "Scans will appear here as workstations detect plates. Make sure a workstation is running and syncing to the central server."}
+          </p>
+        </div>
       ) : (
         <>
           <Card className="glass overflow-hidden">
@@ -329,7 +348,7 @@ export default function SearchPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredDetections.map((det) => {
+                  {detections.map((det) => {
                     const isMatch = det.matchEvents.length > 0;
                     return (
                       <tr
@@ -364,20 +383,33 @@ export default function SearchPage() {
                         </td>
                         <td className="px-4 py-3">
                           {det.confidence !== null ? (
-                            <span className="font-mono text-xs text-foreground">
-                              {(det.confidence * 100).toFixed(0)}%
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <Gauge className="h-3 w-3 text-muted-foreground" />
+                              <span className="font-mono text-xs text-foreground">
+                                {(det.confidence * 100).toFixed(0)}%
+                              </span>
+                            </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-foreground">{det.country || "—"}</span>
+                          {det.country ? (
+                            <div className="flex items-center gap-1.5">
+                              <Globe className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-foreground">{det.country}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs text-foreground truncate max-w-[150px]">
-                            {getVehicleSummary(det)}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <Car className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="text-xs text-foreground truncate max-w-[150px]">
+                              {getVehicleSummary(det)}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           {isMatch ? (
@@ -401,7 +433,7 @@ export default function SearchPage() {
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
               Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of{" "}
-              {total} result{total !== 1 ? "s" : ""}
+              {total} scan{total !== 1 ? "s" : ""}
             </p>
             <div className="flex items-center gap-2">
               <Button

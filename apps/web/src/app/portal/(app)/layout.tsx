@@ -20,6 +20,7 @@ import {
   LogOut,
   Menu,
   Monitor,
+  ScanLine,
   Search,
   Settings,
   Shield,
@@ -114,6 +115,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/portal/dashboard" },
+  { label: "Scans", icon: ScanLine, href: "/portal/scans" },
   { label: "Cameras", icon: Camera, href: "/portal/cameras" },
   { label: "Alerts", icon: Bell, href: "/portal/alerts" },
   { label: "Search", icon: Search, href: "/portal/search" },
