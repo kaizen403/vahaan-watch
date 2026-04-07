@@ -189,6 +189,11 @@ export interface CameraFrame {
 export interface OcrResult {
   plate: string;
   confidence: number;
+  country?: string;
+  make?: string;
+  model?: string;
+  color?: string;
+  category?: string;
 }
 
 export interface OcrProvider {
@@ -315,4 +320,7 @@ export interface WorkstationConfig {
   carmenBinaryPath: string;
   carmenApiKey: string;
   carmenRegion: string;
+  carmenCloudApiBase: string;
+  carmenCloudTimeoutMs: number;
+  carmenCloudMaxConcurrent: number;
 }

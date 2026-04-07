@@ -12,6 +12,8 @@ import { createLogger, setLogLevel } from "./logger.js";
 import { OutboxFlusher } from "./sync/outbox.js";
 import { TabletBridge } from "./tablet/bridge.js";
 import { TtsAnnouncer } from "./alert/tts.js";
+import { CarmenStreamAdapter } from "./ocr/carmen-stream.js";
+import { CarmenCloudOcrAdapter } from "./ocr/carmen-cloud.js";
 import type {
   AlertPayload,
   CameraFrame,
@@ -367,7 +369,11 @@ export async function main(): Promise<void> {
   const api = new CentralApiClient({ baseUrl: config.centralApiUrl });
   await bootstrapDeviceToken(api, config, db);
 
-  const runtimeModules = await loadRuntimeModules();
+  const useCarmenSdk = config.ocrProvider === "carmen-sdk";
+  const useCarmenCloud = config.ocrProvider === "carmen";
+  const useTesseract = !useCarmenSdk && !useCarmenCloud;
+  const needsCamera = useTesseract || useCarmenCloud;
+  const runtimeModules = needsCamera ? await loadRuntimeModules() : null;
   const hitlistDownloader = new HitlistDownloader(api, db);
   const plateMatcher = new PlateMatcher(db, config.fuzzyMatchEnabled);
   const outboxFlusher = new OutboxFlusher(api, db, config);
@@ -375,8 +381,18 @@ export async function main(): Promise<void> {
   const ttsAnnouncer = new TtsAnnouncer(config);
   const tabletBridge = new TabletBridge(config);
   const alerter = new Alerter(tabletBridge, ttsAnnouncer);
-  const camera = new runtimeModules.FfmpegCameraAdapter(config);
-  const ocr = new runtimeModules.TesseractOcrProvider(config);
+
+  const camera = runtimeModules ? new runtimeModules.FfmpegCameraAdapter(config) : null;
+
+  let ocr: OcrProvider | null = null;
+  if (useTesseract && runtimeModules) {
+    ocr = new runtimeModules.TesseractOcrProvider(config);
+  } else if (useCarmenCloud) {
+    ocr = new CarmenCloudOcrAdapter(config);
+  }
+
+  const carmenStream = useCarmenSdk ? new CarmenStreamAdapter(config) : null;
+
   const timerHandles: NodeJS.Timeout[] = [];
   const inFlight = {
     hitlist: false,
@@ -422,11 +438,11 @@ export async function main(): Promise<void> {
         clearInterval(handle);
       }
 
-      await Promise.allSettled([
-        camera.stop(),
-        ocr.shutdown(),
-        tabletBridge.stop(),
-      ]);
+      const stopTasks: Promise<void>[] = [tabletBridge.stop()];
+      if (carmenStream) stopTasks.push(carmenStream.stop());
+      if (camera) stopTasks.push(camera.stop());
+      if (ocr) stopTasks.push(ocr.shutdown());
+      await Promise.allSettled(stopTasks);
 
       db.close();
       logger.info("workstation agent stopped");
@@ -443,11 +459,61 @@ export async function main(): Promise<void> {
     void shutdown("SIGTERM");
   });
 
+  const processDetection = (
+    plate: string,
+    confidence: number | null,
+    occurredAt: string,
+    frameData: Buffer | null,
+    extraFields?: { country?: string; make?: string; model?: string; color?: string; category?: string },
+  ): void => {
+    const normalizedPlate = normalizePlate(plate);
+    if (!normalizedPlate) return;
+
+    const match = plateMatcher.match(plate);
+    let snapshotPath: string | null = null;
+
+    if (match.matched && frameData && runtimeModules) {
+      runtimeModules.saveSnapshot(frameData, config).then((result: unknown) => {
+        const path = extractSnapshotPath(result);
+        if (path) {
+          logger.debug("snapshot saved for match", { plate: normalizedPlate, path });
+        }
+      }).catch((err: unknown) => {
+        logger.warn("snapshot capture failed", { plate: normalizedPlate, error: toErrorMessage(err) });
+      });
+    }
+
+    const artifacts = buildDetectionArtifacts({
+      plate,
+      normalizedPlate,
+      occurredAt,
+      confidence,
+      snapshotPath,
+      match,
+    });
+
+    if (extraFields) {
+      if (extraFields.country) artifacts.pendingDetection.country = extraFields.country;
+      if (extraFields.make) artifacts.pendingDetection.make = extraFields.make;
+      if (extraFields.model) artifacts.pendingDetection.model = extraFields.model;
+      if (extraFields.color) artifacts.pendingDetection.color = extraFields.color;
+    }
+
+    db.insertDetection(artifacts.pendingDetection);
+
+    for (const pendingMatchEvent of artifacts.pendingMatchEvents) {
+      db.insertMatchEvent(pendingMatchEvent);
+    }
+
+    tabletBridge.broadcast({ type: "detection", data: artifacts.detectionEvent });
+
+    if (match.matched) {
+      void alerter.handleMatch(artifacts.detectionEvent, match, artifacts.alerts);
+    }
+  };
+
   try {
     await tabletBridge.start();
-    await ocr.initialize();
-    await camera.start();
-    await updateRuntimeHealthSnapshots(db, camera, ocr);
     await hitlistDownloader.syncAll(await fetchAssignedHitlistIds(api));
 
     await runSerialized("heartbeat", "heartbeat", async () => {
@@ -466,7 +532,9 @@ export async function main(): Promise<void> {
     timerHandles.push(
       setInterval(() => {
         void runSerialized("heartbeat", "heartbeat", async () => {
-          await updateRuntimeHealthSnapshots(db, camera, ocr);
+          if (camera && ocr) {
+            await updateRuntimeHealthSnapshots(db, camera, ocr);
+          }
           await heartbeatService.sendHeartbeat();
           tabletBridge.broadcast({ type: "health", data: heartbeatService.getHealthReport() });
         });
@@ -481,71 +549,82 @@ export async function main(): Promise<void> {
       }, config.outboxFlushIntervalMs),
     );
 
-    timerHandles.push(
-      setInterval(() => {
-        void runSerialized("cleanup", "snapshot cleanup", async () => {
-          await cleanupSnapshots(runtimeModules.cleanExpiredSnapshots, db, config);
+    if (runtimeModules) {
+      timerHandles.push(
+        setInterval(() => {
+          void runSerialized("cleanup", "snapshot cleanup", async () => {
+            await cleanupSnapshots(runtimeModules.cleanExpiredSnapshots, db, config);
+          });
+        }, Math.max(config.heartbeatIntervalMs, 60_000)),
+      );
+    }
+
+    if (useCarmenSdk && carmenStream) {
+      logger.info("workstation agent started (carmen mode)", {
+        deviceId: config.deviceId,
+        region: config.carmenRegion,
+        tabletWsPort: config.tabletWsPort,
+      });
+
+      await carmenStream.start((detection) => {
+        if (shuttingDown) return;
+        const occurredAt = new Date(detection.timestamp).toISOString();
+        processDetection(detection.plate, null, occurredAt, null, {
+          country: detection.country,
+          make: detection.make,
+          model: detection.model,
+          color: detection.color,
+          category: detection.category,
         });
-      }, Math.max(config.heartbeatIntervalMs, 60_000)),
-    );
+      });
 
-    const loopDelayMs = Math.max(1, Math.floor(1000 / Math.max(config.cameraFps, 1)));
-    logger.info("workstation agent started", {
-      deviceId: config.deviceId,
-      cameraFps: config.cameraFps,
-      tabletWsPort: config.tabletWsPort,
-    });
-
-    while (!shuttingDown) {
-      try {
-        const frame = await camera.grabFrame();
-        const detections = await ocr.recognize(frame.data);
-
-        for (const result of detections) {
-          const plate = result.plate.trim();
-          const normalizedPlate = normalizePlate(plate);
-          if (!normalizedPlate) {
-            continue;
+      await new Promise<void>((resolve) => {
+        const check = setInterval(() => {
+          if (shuttingDown) {
+            clearInterval(check);
+            resolve();
           }
+        }, 200);
+        timerHandles.push(check);
+      });
+    } else if (camera && ocr) {
+      await ocr.initialize();
+      await camera.start();
+      await updateRuntimeHealthSnapshots(db, camera, ocr);
 
-          const match = plateMatcher.match(plate);
-          const now = frame.timestamp.toISOString();
-          let snapshotPath: string | null = null;
-          if (match.matched) {
-            const snapshotResult = await runtimeModules.saveSnapshot(frame.data, config).catch((err: unknown) => {
-              logger.warn("snapshot capture failed", { plate: normalizedPlate, error: toErrorMessage(err) });
-              return null;
-            });
-            snapshotPath = extractSnapshotPath(snapshotResult);
+      const loopDelayMs = Math.max(1, Math.floor(1000 / Math.max(config.cameraFps, 1)));
+      logger.info(`workstation agent started (${useCarmenCloud ? "carmen-cloud" : "tesseract"} mode)`, {
+        deviceId: config.deviceId,
+        cameraFps: config.cameraFps,
+        tabletWsPort: config.tabletWsPort,
+      });
+
+      while (!shuttingDown) {
+        try {
+          const frame = await camera.grabFrame();
+          const detections = await ocr.recognize(frame.data);
+
+          for (const result of detections) {
+            processDetection(
+              result.plate.trim(),
+              result.confidence,
+              frame.timestamp.toISOString(),
+              frame.data,
+              result.country ? {
+                country: result.country,
+                make: result.make,
+                model: result.model,
+                color: result.color,
+                category: result.category,
+              } : undefined,
+            );
           }
-
-           const artifacts = buildDetectionArtifacts({
-             plate,
-             normalizedPlate,
-             occurredAt: now,
-             confidence: result.confidence,
-             snapshotPath,
-             match,
-           });
-
-           db.insertDetection(artifacts.pendingDetection);
-
-           for (const pendingMatchEvent of artifacts.pendingMatchEvents) {
-             db.insertMatchEvent(pendingMatchEvent);
-           }
-
-           // Broadcast ALL detections to tablets
-           tabletBridge.broadcast({ type: "detection", data: artifacts.detectionEvent });
-
-           if (match.matched) {
-             await alerter.handleMatch(artifacts.detectionEvent, match, artifacts.alerts);
-           }
+        } catch (error) {
+          logger.error("frame processing failed", { error: toErrorMessage(error) });
         }
-      } catch (error) {
-        logger.error("frame processing failed", { error: toErrorMessage(error) });
-      }
 
-      await sleep(loopDelayMs);
+        await sleep(loopDelayMs);
+      }
     }
   } catch (error) {
     logger.error("workstation agent failed", { error: toErrorMessage(error) });

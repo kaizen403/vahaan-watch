@@ -85,6 +85,12 @@ export function loadConfig(): WorkstationConfig {
     rtspReconnectMaxAttemptsPerSession: int("RTSP_RECONNECT_MAX_ATTEMPTS", 5),
     rtspStreamValidationIntervalMs: int("RTSP_STREAM_VALIDATION_INTERVAL_MS", 30000),
     cameraSources: parseCameraSources(optional("CAMERA_SOURCES_JSON", "")),
+    carmenBinaryPath: optional("CARMEN_BINARY_PATH", ""),
+    carmenApiKey: optional("CARMEN_API_KEY", ""),
+    carmenRegion: optional("CARMEN_REGION", "IND"),
+    carmenCloudApiBase: optional("CARMEN_CLOUD_API_BASE", "https://ap-southeast-1.api.carmencloud.com/vehicle"),
+    carmenCloudTimeoutMs: int("CARMEN_CLOUD_TIMEOUT_MS", 10000),
+    carmenCloudMaxConcurrent: int("CARMEN_CLOUD_MAX_CONCURRENT", 3),
   });
 }
 
