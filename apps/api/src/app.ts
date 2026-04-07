@@ -16,6 +16,7 @@ import { portalScanRoutes } from "./routes/portal-scan.js";
 import { workstationStatsRoutes } from "./routes/workstation-stats.js";
 import { workstationRoutes } from "./routes/workstations.js";
 import { sessionContext, requireRole, requireUser } from "./middleware/session.js";
+import { fail } from "./utils/json.js";
 import { requireDevice } from "./middleware/device-auth.js";
 import { securityHeaders, bodyLimit } from "./middleware/security.js";
 import { requestLogger } from "./middleware/request-logger.js";
@@ -74,8 +75,16 @@ export function createApp() {
 
   app.use("/api/workstations/auth", authRateLimit);
   app.use("/api/workstations/tablet-pair", authRateLimit);
-  app.use("/api/workstations/:id", requireUser, requireRole("admin"));
-  app.use("/api/workstations", requireUser, requireRole("admin"));
+  app.use("/api/workstations", async (c, next) => {
+    const path = c.req.path;
+    if (path === "/api/workstations/auth" || path === "/api/workstations/tablet-pair" || path.endsWith("/stats")) {
+      return next();
+    }
+    const user = c.get("user");
+    if (!user) return fail(c, 401, "Authentication required.");
+    if (user.role !== "admin") return fail(c, 403, "Insufficient role for this action.");
+    await next();
+  });
   app.route("/", workstationRoutes);
 
   app.use("/api/portal/scan", requireUser, requireRole("admin", "operator", "scanner"));
