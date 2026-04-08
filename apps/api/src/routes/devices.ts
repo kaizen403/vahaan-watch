@@ -3,6 +3,7 @@ import type { AppBindings } from "../types.js";
 import { prisma } from "../lib/prisma.js";
 import { config } from "../lib/env.js";
 import { issueDeviceToken } from "../utils/crypto.js";
+import { computeEffectiveStatus } from "../utils/device-status.js";
 import { fail, ok } from "../utils/json.js";
 import { writeAuditLog } from "../lib/audit.js";
 
@@ -42,7 +43,7 @@ deviceRoutes.post("/api/devices/register", async (c) => {
       });
       await prisma.workstation.update({
         where: { id: existing.id },
-        data: { status: "ACTIVE", lastSeenAt: new Date() },
+        data: { status: "ACTIVE" },
       });
 
       await writeAuditLog({
@@ -160,11 +161,21 @@ deviceRoutes.post("/api/devices/register", async (c) => {
 });
 
 deviceRoutes.get("/api/devices", async (c) => {
-  const [workstations, tablets, pairings] = await Promise.all([
+  const [rawWorkstations, rawTablets, pairings] = await Promise.all([
     prisma.workstation.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.tablet.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.devicePairing.findMany({ orderBy: { createdAt: "desc" } }),
   ]);
+
+  const now = Date.now();
+  const workstations = rawWorkstations.map((ws) => ({
+    ...ws,
+    status: computeEffectiveStatus(ws.status, ws.lastSeenAt, now),
+  }));
+  const tablets = rawTablets.map((t) => ({
+    ...t,
+    status: computeEffectiveStatus(t.status, t.lastSeenAt, now),
+  }));
 
   return ok(c, { workstations, tablets, pairings });
 });

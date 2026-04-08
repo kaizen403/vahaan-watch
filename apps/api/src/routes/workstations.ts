@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import type { AppBindings } from "../types.js";
 import { prisma } from "../lib/prisma.js";
 import { issueDeviceToken } from "../utils/crypto.js";
+import { computeEffectiveStatus } from "../utils/device-status.js";
 import { fail, ok } from "../utils/json.js";
 import { writeAuditLog } from "../lib/audit.js";
 
@@ -13,14 +14,17 @@ workstationRoutes.post("/api/workstations", async (c) => {
   const address = typeof body.address === "string" ? body.address.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const description = typeof body.description === "string" ? body.description.trim() : null;
+  const description =
+    typeof body.description === "string" ? body.description.trim() : null;
 
   if (!address) return fail(c, 400, "address is required.");
-  if (!password || password.length < 4) return fail(c, 400, "password is required (min 4 chars).");
+  if (!password || password.length < 4)
+    return fail(c, 400, "password is required (min 4 chars).");
   if (!name) return fail(c, 400, "name is required.");
 
   const existing = await prisma.workstation.findUnique({ where: { address } });
-  if (existing) return fail(c, 409, "A workstation with this address already exists.");
+  if (existing)
+    return fail(c, 409, "A workstation with this address already exists.");
 
   const passwordHash = await bcrypt.hash(password, 10);
   const issued = issueDeviceToken();
@@ -32,7 +36,7 @@ workstationRoutes.post("/api/workstations", async (c) => {
       passwordHash,
       name,
       description,
-      status: "ACTIVE",
+      status: "PENDING",
       tokens: {
         create: {
           tokenHash: issued.tokenHash,
@@ -51,14 +55,18 @@ workstationRoutes.post("/api/workstations", async (c) => {
     metadata: { address },
   });
 
-  return ok(c, {
-    id: workstation.id,
-    address: workstation.address,
-    name: workstation.name,
-    description: workstation.description,
-    status: workstation.status,
-    deviceToken: issued.rawToken,
-  }, 201);
+  return ok(
+    c,
+    {
+      id: workstation.id,
+      address: workstation.address,
+      name: workstation.name,
+      description: workstation.description,
+      status: workstation.status,
+      deviceToken: issued.rawToken,
+    },
+    201,
+  );
 });
 
 workstationRoutes.get("/api/workstations", async (c) => {
@@ -69,19 +77,25 @@ workstationRoutes.get("/api/workstations", async (c) => {
     },
   });
 
-  const result = workstations.map((ws) => ({
-    id: ws.id,
-    deviceId: ws.deviceId,
-    address: ws.address,
-    name: ws.name,
-    description: ws.description,
-    status: ws.status,
-    registeredAt: ws.registeredAt,
-    lastSeenAt: ws.lastSeenAt,
-    createdAt: ws.createdAt,
-    updatedAt: ws.updatedAt,
-    connectedTablets: ws._count.pairings,
-  }));
+  const now = Date.now();
+
+  const result = workstations.map((ws) => {
+    const effectiveStatus = computeEffectiveStatus(ws.status, ws.lastSeenAt, now);
+
+    return {
+      id: ws.id,
+      deviceId: ws.deviceId,
+      address: ws.address,
+      name: ws.name,
+      description: ws.description,
+      status: effectiveStatus,
+      registeredAt: ws.registeredAt,
+      lastSeenAt: ws.lastSeenAt,
+      createdAt: ws.createdAt,
+      updatedAt: ws.updatedAt,
+      connectedTablets: ws._count.pairings,
+    };
+  });
 
   return ok(c, result);
 });
@@ -107,8 +121,11 @@ workstationRoutes.put("/api/workstations/:id", async (c) => {
   if (typeof body.address === "string" && body.address.trim()) {
     const newAddress = body.address.trim();
     if (newAddress !== ws.address) {
-      const conflict = await prisma.workstation.findUnique({ where: { address: newAddress } });
-      if (conflict) return fail(c, 409, "A workstation with this address already exists.");
+      const conflict = await prisma.workstation.findUnique({
+        where: { address: newAddress },
+      });
+      if (conflict)
+        return fail(c, 409, "A workstation with this address already exists.");
       data.address = newAddress;
       data.deviceId = newAddress;
     }
@@ -162,7 +179,8 @@ workstationRoutes.post("/api/workstations/auth", async (c) => {
   const address = typeof body.address === "string" ? body.address.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
 
-  if (!address || !password) return fail(c, 400, "address and password are required.");
+  if (!address || !password)
+    return fail(c, 400, "address and password are required.");
 
   const ws = await prisma.workstation.findUnique({ where: { address } });
   if (!ws) return fail(c, 401, "Invalid credentials.");
@@ -172,7 +190,7 @@ workstationRoutes.post("/api/workstations/auth", async (c) => {
 
   await prisma.workstation.update({
     where: { id: ws.id },
-    data: { lastSeenAt: new Date() },
+    data: { status: "ACTIVE" },
   });
 
   await prisma.deviceToken.updateMany({
@@ -206,7 +224,8 @@ workstationRoutes.post("/api/workstations/tablet-pair", async (c) => {
   const address = typeof body.address === "string" ? body.address.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
 
-  if (!address || !password) return fail(c, 400, "address and password are required.");
+  if (!address || !password)
+    return fail(c, 400, "address and password are required.");
 
   const ws = await prisma.workstation.findUnique({ where: { address } });
   if (!ws) return fail(c, 401, "Invalid credentials.");

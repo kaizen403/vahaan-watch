@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppBindings } from "../types.js";
 import { prisma } from "../lib/prisma.js";
+import { computeEffectiveStatus } from "../utils/device-status.js";
 import { fail, ok } from "../utils/json.js";
 import { writeAuditLog } from "../lib/audit.js";
 
@@ -107,9 +108,12 @@ telemetryRoutes.get("/api/devices/:deviceId/health", async (c) => {
   });
 
   return ok(c, {
-    status: workstation.status,
+    status: computeEffectiveStatus(workstation.status, workstation.lastSeenAt),
     lastSeenAt: workstation.lastSeenAt,
-    workstation,
+    workstation: {
+      ...workstation,
+      status: computeEffectiveStatus(workstation.status, workstation.lastSeenAt),
+    },
     telemetry,
   });
 });

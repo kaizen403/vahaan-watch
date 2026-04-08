@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppBindings } from "../types.js";
 import { prisma } from "../lib/prisma.js";
+import { computeEffectiveStatus } from "../utils/device-status.js";
 import { fail, ok } from "../utils/json.js";
 
 export const workstationStatsRoutes = new Hono<AppBindings>();
@@ -47,6 +48,47 @@ workstationStatsRoutes.get("/api/workstations/:workstationId/stats", async (c) =
     matchesToday,
     lastSeenAt: workstation.lastSeenAt,
   });
+});
+
+workstationStatsRoutes.get("/api/detections/:id", async (c) => {
+  const id = c.req.param("id");
+
+  const detection = await prisma.detection.findUnique({
+    where: { id },
+    include: {
+      workstation: { select: { id: true, name: true, address: true, deviceId: true, status: true } },
+      matchEvents: {
+        include: {
+          hitlistEntry: {
+            select: {
+              id: true,
+              plateOriginal: true,
+              plateNormalized: true,
+              priority: true,
+              reasonSummary: true,
+              caseReference: true,
+              sourceAgency: true,
+              vehicleMake: true,
+              vehicleModel: true,
+              vehicleColor: true,
+              vehicleCategory: true,
+              ownerName: true,
+              ownerContact: true,
+              extendedCaseNotes: true,
+              status: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  if (!detection) {
+    return fail(c, 404, "Detection not found.");
+  }
+
+  return ok(c, detection);
 });
 
 workstationStatsRoutes.get("/api/detections", async (c) => {
@@ -136,7 +178,7 @@ workstationStatsRoutes.get("/api/analytics/summary", async (c) => {
       return {
         workstationId: ws.id,
         name: ws.name,
-        status: ws.status,
+        status: computeEffectiveStatus(ws.status, ws.lastSeenAt),
         lastSeenAt: ws.lastSeenAt,
         detectionsInRange: wsDetections,
         matchesInRange: wsMatches,
@@ -147,17 +189,42 @@ workstationStatsRoutes.get("/api/analytics/summary", async (c) => {
 
   // Daily breakdown for chart
   const days: Array<{ date: string; detections: number; matches: number }> = [];
+  const dailyByWorkstation: Record<string, Array<{ date: string; detections: number; matches: number }>> = {};
+
+  // Initialize per-workstation daily arrays
+  if (!workstationId) {
+    for (const ws of workstations) {
+      dailyByWorkstation[ws.id] = [];
+    }
+  }
+
   const cursor = new Date(from);
   cursor.setUTCHours(0, 0, 0, 0);
   while (cursor <= to) {
     const dayStart = new Date(cursor);
     const dayEnd = new Date(cursor);
     dayEnd.setUTCHours(23, 59, 59, 999);
+    const dateStr = cursor.toISOString().split("T")[0]!;
+
     const [d, m] = await Promise.all([
       prisma.detection.count({ where: { ...workstationFilter, occurredAt: { gte: dayStart, lte: dayEnd } } }),
       prisma.matchEvent.count({ where: { ...workstationFilter, createdAt: { gte: dayStart, lte: dayEnd } } }),
     ]);
-    days.push({ date: cursor.toISOString().split("T")[0]!, detections: d, matches: m });
+    days.push({ date: dateStr, detections: d, matches: m });
+
+    // Per-workstation daily breakdown (only in "all" view)
+    if (!workstationId) {
+      await Promise.all(
+        workstations.map(async (ws) => {
+          const [wd, wm] = await Promise.all([
+            prisma.detection.count({ where: { workstationId: ws.id, occurredAt: { gte: dayStart, lte: dayEnd } } }),
+            prisma.matchEvent.count({ where: { workstationId: ws.id, createdAt: { gte: dayStart, lte: dayEnd } } }),
+          ]);
+          dailyByWorkstation[ws.id]!.push({ date: dateStr, detections: wd, matches: wm });
+        })
+      );
+    }
+
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
@@ -169,5 +236,6 @@ workstationStatsRoutes.get("/api/analytics/summary", async (c) => {
     hitRate: detectionsInRange > 0 ? matchesInRange / detectionsInRange : 0,
     byWorkstation,
     daily: days,
+    ...(workstationId ? {} : { dailyByWorkstation }),
   });
 });
