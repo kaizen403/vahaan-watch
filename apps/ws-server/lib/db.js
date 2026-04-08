@@ -1,6 +1,7 @@
 const { Pool } = require("pg");
 
 const POSTGRES_URL =
+  process.env.WS_POSTGRES_URL ||
   process.env.POSTGRES_URL ||
   "postgresql://postgres:postgres@127.0.0.1:5432/carmen_anpr";
 const DB_SCHEMA = process.env.DB_SCHEMA || "public";

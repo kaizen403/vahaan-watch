@@ -4,6 +4,7 @@ import pino from "pino";
 const logger = pino({ name: "ws-server:db", level: process.env.LOG_LEVEL ?? "info" });
 
 const POSTGRES_URL =
+  process.env.WS_POSTGRES_URL ||
   process.env.POSTGRES_URL ||
   "postgresql://postgres:postgres@127.0.0.1:5432/carmen_anpr";
 export const DB_SCHEMA = process.env.DB_SCHEMA || "public";
