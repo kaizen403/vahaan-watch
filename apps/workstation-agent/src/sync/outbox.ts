@@ -16,7 +16,9 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function toDetectionUploadRequest(detection: PendingDetection): DetectionUploadRequest {
+function toDetectionUploadRequest(
+  detection: PendingDetection,
+): DetectionUploadRequest {
   return {
     externalEventId: detection.externalEventId,
     plate: detection.plate,
@@ -26,12 +28,15 @@ function toDetectionUploadRequest(detection: PendingDetection): DetectionUploadR
     make: detection.make,
     model: detection.model,
     color: detection.color,
+    category: detection.category,
     confidence: detection.confidence,
     snapshotUrl: detection.snapshotPath,
   };
 }
 
-function toMatchEventUploadRequest(matchEvent: PendingMatchEvent): MatchEventUploadRequest {
+function toMatchEventUploadRequest(
+  matchEvent: PendingMatchEvent,
+): MatchEventUploadRequest {
   return {
     externalEventId: matchEvent.externalEventId,
     detectionId: matchEvent.detectionId,
@@ -59,14 +64,20 @@ export class OutboxFlusher {
   public constructor(
     private readonly api: CentralApiClient,
     private readonly db: DbClient,
-    config?: Pick<WorkstationConfig, "outboxMaxRetries" | "outboxRetryBaseDelayMs" | "outboxRetryMaxDelayMs">,
+    config?: Pick<
+      WorkstationConfig,
+      "outboxMaxRetries" | "outboxRetryBaseDelayMs" | "outboxRetryMaxDelayMs"
+    >,
   ) {
     this.maxRetries = config?.outboxMaxRetries ?? 10;
     this.baseDelayMs = config?.outboxRetryBaseDelayMs ?? 5000;
     this.maxDelayMs = config?.outboxRetryMaxDelayMs ?? 300000;
   }
 
-  public async flush(matchEventBatchSize: number, detectionBatchSize: number = matchEventBatchSize): Promise<FlushSummary> {
+  public async flush(
+    matchEventBatchSize: number,
+    detectionBatchSize: number = matchEventBatchSize,
+  ): Promise<FlushSummary> {
     const summary: FlushSummary = {
       matchEventsSynced: 0,
       detectionsSynced: 0,
@@ -79,7 +90,10 @@ export class OutboxFlusher {
 
     const now = new Date().toISOString();
 
-    const matchEvents = this.db.getRetryableMatchEvents(matchEventBatchSize, now);
+    const matchEvents = this.db.getRetryableMatchEvents(
+      matchEventBatchSize,
+      now,
+    );
     for (const matchEvent of matchEvents) {
       await this.syncMatchEvent(matchEvent, summary);
     }
@@ -89,7 +103,11 @@ export class OutboxFlusher {
       await this.syncDetection(detection, summary);
     }
 
-    if (summary.matchEventsSynced > 0 || summary.detectionsSynced > 0 || summary.errors > 0) {
+    if (
+      summary.matchEventsSynced > 0 ||
+      summary.detectionsSynced > 0 ||
+      summary.errors > 0
+    ) {
       logger.debug("outbox flush completed", { ...summary });
     }
 
@@ -110,7 +128,13 @@ export class OutboxFlusher {
       summary.errors += 1;
 
       if (attempts >= this.maxRetries) {
-        this.db.recordSyncAttempt("pending_match_events", matchEvent.id, attempts, null, true);
+        this.db.recordSyncAttempt(
+          "pending_match_events",
+          matchEvent.id,
+          attempts,
+          null,
+          true,
+        );
         summary.matchEventsFailed += 1;
         logger.warn("match event dead-lettered after max retries", {
           matchEventId: matchEvent.id,
@@ -119,8 +143,18 @@ export class OutboxFlusher {
           error: toErrorMessage(error),
         });
       } else {
-        const nextRetryAt = computeNextRetryAt(attempts, this.baseDelayMs, this.maxDelayMs);
-        this.db.recordSyncAttempt("pending_match_events", matchEvent.id, attempts, nextRetryAt, false);
+        const nextRetryAt = computeNextRetryAt(
+          attempts,
+          this.baseDelayMs,
+          this.maxDelayMs,
+        );
+        this.db.recordSyncAttempt(
+          "pending_match_events",
+          matchEvent.id,
+          attempts,
+          nextRetryAt,
+          false,
+        );
         summary.matchEventsRetried += 1;
         logger.error("match event upload failed, will retry", {
           matchEventId: matchEvent.id,
@@ -147,7 +181,13 @@ export class OutboxFlusher {
       summary.errors += 1;
 
       if (attempts >= this.maxRetries) {
-        this.db.recordSyncAttempt("pending_detections", detection.id, attempts, null, true);
+        this.db.recordSyncAttempt(
+          "pending_detections",
+          detection.id,
+          attempts,
+          null,
+          true,
+        );
         summary.detectionsFailed += 1;
         logger.warn("detection dead-lettered after max retries", {
           detectionId: detection.id,
@@ -156,8 +196,18 @@ export class OutboxFlusher {
           error: toErrorMessage(error),
         });
       } else {
-        const nextRetryAt = computeNextRetryAt(attempts, this.baseDelayMs, this.maxDelayMs);
-        this.db.recordSyncAttempt("pending_detections", detection.id, attempts, nextRetryAt, false);
+        const nextRetryAt = computeNextRetryAt(
+          attempts,
+          this.baseDelayMs,
+          this.maxDelayMs,
+        );
+        this.db.recordSyncAttempt(
+          "pending_detections",
+          detection.id,
+          attempts,
+          nextRetryAt,
+          false,
+        );
         summary.detectionsRetried += 1;
         logger.error("detection upload failed, will retry", {
           detectionId: detection.id,

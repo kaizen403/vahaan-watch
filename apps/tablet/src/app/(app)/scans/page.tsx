@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  ListPlus,
   Loader2,
   RefreshCw,
   ScanLine,
@@ -15,6 +16,7 @@ import {
 
 import { useWorkstation } from "@/contexts/WorkstationContext";
 import { api } from "@/lib/api";
+import { AddToHitlistModal } from "@/components/AddToHitlistModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,11 +33,14 @@ interface ApiDetection {
   make: string | null;
   model: string | null;
   color: string | null;
+  category: string | null;
   workstation: { name: string; deviceId: string } | null;
   matchEvents: { id: string; alertStatus: string }[];
 }
 
-type ApiResp<T> = { success: true; data: T } | { success: false; error: string };
+type ApiResp<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
 
 interface DisplayScan {
   id: string;
@@ -43,9 +48,21 @@ interface DisplayScan {
   occurredAt: string;
   confidence: number | null;
   country: string | null;
+  make: string | null;
+  model: string | null;
+  color: string | null;
+  category: string | null;
   isMatch: boolean;
   isLive: boolean;
 }
+
+type HitlistTarget = {
+  plate: string;
+  make: string | null;
+  model: string | null;
+  color: string | null;
+  category: string | null;
+};
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -55,7 +72,10 @@ function relativeTime(iso: string): string {
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function fromLive(det: DetectionEvent, matchedIds: Set<string>): DisplayScan {
@@ -64,7 +84,11 @@ function fromLive(det: DetectionEvent, matchedIds: Set<string>): DisplayScan {
     plate: det.plate,
     occurredAt: det.occurredAt,
     confidence: det.confidence,
-    country: null,
+    country: det.country,
+    make: det.make,
+    model: det.model,
+    color: det.color,
+    category: det.category,
     isMatch: matchedIds.has(det.id),
     isLive: true,
   };
@@ -77,9 +101,19 @@ function fromApi(det: ApiDetection): DisplayScan {
     occurredAt: det.occurredAt,
     confidence: det.confidence,
     country: det.country,
+    make: det.make,
+    model: det.model,
+    color: det.color,
+    category: det.category,
     isMatch: det.matchEvents.length > 0,
     isLive: false,
   };
+}
+
+function vehicleSummary(scan: DisplayScan): string {
+  return [scan.color, scan.make, scan.model, scan.category]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 const MAX_LIVE = 100;
@@ -97,6 +131,7 @@ export default function ScansPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchPlate, setSearchPlate] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
+  const [hitlistPlate, setHitlistPlate] = useState<HitlistTarget | null>(null);
   const pageSize = 30;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -138,7 +173,9 @@ export default function ScansPage() {
           setError(resp.error);
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to load scan history");
+        setError(
+          e instanceof Error ? e.message : "Failed to load scan history",
+        );
       } finally {
         setLoading(false);
       }
@@ -159,7 +196,9 @@ export default function ScansPage() {
     void fetchHistory(newPage, activeSearch);
   }
 
-  const liveDisplayScans = liveScans.map((det) => fromLive(det, matchedDetectionIds));
+  const liveDisplayScans = liveScans.map((det) =>
+    fromLive(det, matchedDetectionIds),
+  );
   const apiIdSet = new Set(apiScans.map((s) => s.id));
   const uniqueLive = liveDisplayScans.filter((s) => !apiIdSet.has(s.id));
 
@@ -185,7 +224,10 @@ export default function ScansPage() {
           aria-label="Refresh scans"
         >
           <RefreshCw
-            className={cn("w-4 h-4 text-muted-foreground", loading && "animate-spin")}
+            className={cn(
+              "w-4 h-4 text-muted-foreground",
+              loading && "animate-spin",
+            )}
           />
         </Button>
       </div>
@@ -252,14 +294,25 @@ export default function ScansPage() {
                         {scan.plate}
                       </span>
                       {scan.isMatch && (
-                        <Badge variant="destructive" className="text-[10px]">HIT</Badge>
+                        <Badge variant="destructive" className="text-[10px]">
+                          HIT
+                        </Badge>
                       )}
-                      <Badge variant="default" className="text-[10px]">LIVE</Badge>
                     </div>
+                    {vehicleSummary(scan) && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        {vehicleSummary(scan)}
+                      </p>
+                    )}
                     <div className="flex items-center gap-3 mt-1">
                       {scan.confidence !== null && (
                         <span className="text-[10px] text-muted-foreground font-mono">
                           {(scan.confidence * 100).toFixed(0)}%
+                        </span>
+                      )}
+                      {scan.country && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {scan.country}
                         </span>
                       )}
                       <span className="text-[10px] text-muted-foreground">
@@ -267,6 +320,23 @@ export default function ScansPage() {
                       </span>
                     </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary"
+                    onClick={() =>
+                      setHitlistPlate({
+                        plate: scan.plate,
+                        make: scan.make,
+                        model: scan.model,
+                        color: scan.color,
+                        category: scan.category,
+                      })
+                    }
+                    aria-label="Add to hitlist"
+                  >
+                    <ListPlus className="h-4 w-4" />
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -326,9 +396,16 @@ export default function ScansPage() {
                         {scan.plate}
                       </span>
                       {scan.isMatch && (
-                        <Badge variant="destructive" className="text-[10px]">HIT</Badge>
+                        <Badge variant="destructive" className="text-[10px]">
+                          HIT
+                        </Badge>
                       )}
                     </div>
+                    {vehicleSummary(scan) && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        {vehicleSummary(scan)}
+                      </p>
+                    )}
                     <div className="flex items-center gap-3 mt-1">
                       {scan.confidence !== null && (
                         <span className="text-[10px] text-muted-foreground font-mono">
@@ -345,6 +422,23 @@ export default function ScansPage() {
                       </span>
                     </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary"
+                    onClick={() =>
+                      setHitlistPlate({
+                        plate: scan.plate,
+                        make: scan.make,
+                        model: scan.model,
+                        color: scan.color,
+                        category: scan.category,
+                      })
+                    }
+                    aria-label="Add to hitlist"
+                  >
+                    <ListPlus className="h-4 w-4" />
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -354,7 +448,8 @@ export default function ScansPage() {
         {apiScans.length > 0 && totalPages > 1 && (
           <div className="flex items-center justify-between mt-3">
             <span className="text-[10px] text-muted-foreground">
-              {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
+              {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of{" "}
+              {total}
             </span>
             <div className="flex items-center gap-1.5">
               <Button
@@ -382,6 +477,15 @@ export default function ScansPage() {
           </div>
         )}
       </div>
+      <AddToHitlistModal
+        open={!!hitlistPlate}
+        plate={hitlistPlate?.plate ?? ""}
+        vehicleMake={hitlistPlate?.make}
+        vehicleModel={hitlistPlate?.model}
+        vehicleColor={hitlistPlate?.color}
+        vehicleCategory={hitlistPlate?.category}
+        onClose={() => setHitlistPlate(null)}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 {
-  "name": "Vehicle Surveillance Tablet",
-  "short_name": "VS Tablet",
+  "name": "Vaahan Tablet",
+  "short_name": "Vaahan",
   "description": "Vehicle surveillance tablet dashboard for workstation operators",
   "start_url": "/",
   "display": "standalone",

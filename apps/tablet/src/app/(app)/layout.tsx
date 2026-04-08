@@ -9,7 +9,6 @@ import {
   ListChecks,
   ScanLine,
   Settings,
-  Shield,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -122,11 +121,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
       <header className="h-12 glass-heavy border-b border-border flex items-center px-4 gap-3 shrink-0">
-        <div className="w-7 h-7 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
-          <Shield className="w-3.5 h-3.5 text-primary" strokeWidth={1.5} />
-        </div>
-        <span className="font-bold tracking-[0.12em] text-xs text-foreground flex-1">
-          SURVEILLANCE
+        <span className="font-semibold tracking-tight text-xs text-foreground flex-1">
+          Vaahan
         </span>
         <LiveClock />
         <ConnectionIndicator />

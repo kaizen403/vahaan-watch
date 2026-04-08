@@ -5,6 +5,7 @@ const {
   normalizePlate,
 } = require("./crypto");
 const { tableRef } = require("./db");
+const { isInMainHitlist } = require("./hitlistClient");
 
 const DUMMY_BLACKLIST = [
   { plate: "KA01AB1234", reason: "Stolen vehicle (dummy)", riskLevel: "high" },
@@ -70,6 +71,10 @@ async function isPlateBlacklisted(db, tableName, plate) {
   const normalized = normalizePlate(plate);
   if (!normalized) {
     return { isBlacklisted: false, normalizedPlate: normalized, record: null };
+  }
+
+  if (isInMainHitlist(normalized)) {
+    return { isBlacklisted: true, normalizedPlate: normalized, record: null };
   }
 
   const { rows } = await db.query(

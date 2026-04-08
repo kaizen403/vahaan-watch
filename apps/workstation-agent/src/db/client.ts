@@ -47,6 +47,7 @@ export class DbClient {
             make,
             model,
             color,
+            category,
             synced,
             syncedAt,
             createdAt
@@ -63,6 +64,7 @@ export class DbClient {
             @make,
             @model,
             @color,
+            @category,
             @synced,
             @syncedAt,
             @createdAt
@@ -102,7 +104,10 @@ export class DbClient {
       .run(syncedAt, id);
   }
 
-  public getRetryableDetections(limit: number, now: string): PendingDetection[] {
+  public getRetryableDetections(
+    limit: number,
+    now: string,
+  ): PendingDetection[] {
     return this.db
       .prepare(
         `
@@ -178,7 +183,10 @@ export class DbClient {
       .run(syncedAt, id);
   }
 
-  public getRetryableMatchEvents(limit: number, now: string): PendingMatchEvent[] {
+  public getRetryableMatchEvents(
+    limit: number,
+    now: string,
+  ): PendingMatchEvent[] {
     return this.db
       .prepare(
         `
@@ -261,7 +269,9 @@ export class DbClient {
     };
   }
 
-  public resetFailedItems(table: "pending_detections" | "pending_match_events"): number {
+  public resetFailedItems(
+    table: "pending_detections" | "pending_match_events",
+  ): number {
     const resolvedTable = this.resolvePendingTable(table);
     const result = this.db
       .prepare(
@@ -358,8 +368,14 @@ export class DbClient {
     return result.changes;
   }
 
-  public replaceHitlistEntries(hitlistId: string, entries: LocalHitlistEntry[], syncedAt: string): number {
-    const clear = this.db.prepare("DELETE FROM local_hitlist_entries WHERE hitlistId = ?");
+  public replaceHitlistEntries(
+    hitlistId: string,
+    entries: LocalHitlistEntry[],
+    syncedAt: string,
+  ): number {
+    const clear = this.db.prepare(
+      "DELETE FROM local_hitlist_entries WHERE hitlistId = ?",
+    );
     const upsert = this.db.prepare(`
       INSERT INTO local_hitlist_entries (
         id,
@@ -410,13 +426,15 @@ export class DbClient {
         syncedAt = excluded.syncedAt
     `);
 
-    const transaction = this.db.transaction((id: string, rows: LocalHitlistEntry[]) => {
-      clear.run(id);
-      for (const row of rows) {
-        upsert.run({ ...row, syncedAt });
-      }
-      return rows.length;
-    });
+    const transaction = this.db.transaction(
+      (id: string, rows: LocalHitlistEntry[]) => {
+        clear.run(id);
+        for (const row of rows) {
+          upsert.run({ ...row, syncedAt });
+        }
+        return rows.length;
+      },
+    );
 
     return transaction(hitlistId, entries) as number;
   }
@@ -620,7 +638,11 @@ export class DbClient {
     return row ?? null;
   }
 
-  public setSyncCursor(scope: SyncScope, cursor: string, updatedAt = new Date().toISOString()): void {
+  public setSyncCursor(
+    scope: SyncScope,
+    cursor: string,
+    updatedAt = new Date().toISOString(),
+  ): void {
     this.db
       .prepare(
         `
@@ -658,7 +680,9 @@ export class DbClient {
       .run({ token, updatedAt });
   }
 
-  private resolvePendingTable(table: "pending_detections" | "pending_match_events"): string {
+  private resolvePendingTable(
+    table: "pending_detections" | "pending_match_events",
+  ): string {
     if (table === "pending_detections") {
       return table;
     }

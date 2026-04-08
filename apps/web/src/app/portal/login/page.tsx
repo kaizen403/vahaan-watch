@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Lock, Mail, Shield } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 
 import { auth } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -56,14 +56,11 @@ function LoginForm() {
 
       <div className="relative w-full max-w-md mx-auto px-4 py-12">
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl glass glow-primary mb-5">
-            <Shield className="w-8 h-8 text-primary" strokeWidth={1.5} />
-          </div>
-          <h1 className="text-3xl font-bold tracking-[0.2em] text-foreground uppercase">
-            Vehicle Surveillance
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Vaahan
           </h1>
           <p className="text-muted-foreground text-sm mt-2 tracking-wide">
-            Vehicle Surveillance Platform
+            Vehicle surveillance and ANPR platform
           </p>
         </div>
 

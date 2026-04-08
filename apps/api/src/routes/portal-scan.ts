@@ -14,8 +14,16 @@ export const portalScanRoutes = new Hono<AppBindings>();
 
 const PORTAL_SCANNER_DEVICE_ID = "portal-scanner";
 
-async function getOrCreatePortalWorkstation(): Promise<string> {
-  const ws = await prisma.workstation.upsert({
+async function resolveWorkstationId(workstationAddress?: string): Promise<string> {
+  if (workstationAddress) {
+    const ws = await prisma.workstation.findUnique({
+      where: { address: workstationAddress },
+      select: { id: true },
+    });
+    if (ws) return ws.id;
+  }
+
+  const portal = await prisma.workstation.upsert({
     where: { deviceId: PORTAL_SCANNER_DEVICE_ID },
     update: {},
     create: {
@@ -27,7 +35,7 @@ async function getOrCreatePortalWorkstation(): Promise<string> {
       status: "ACTIVE",
     },
   });
-  return ws.id;
+  return portal.id;
 }
 
 portalScanRoutes.post("/api/portal/scan", async (c) => {
@@ -46,7 +54,8 @@ portalScanRoutes.post("/api/portal/scan", async (c) => {
     return fail(c, 400, "occurredAt must be a valid ISO date string.");
   }
 
-  const workstationId = await getOrCreatePortalWorkstation();
+  const workstationAddress = typeof body.workstationAddress === "string" ? body.workstationAddress.trim() : undefined;
+  const workstationId = await resolveWorkstationId(workstationAddress);
   const externalEventId = `portal-${randomUUID()}`;
   const now = new Date();
   const normalizedPlate = normalizePlate(plate);

@@ -6,6 +6,11 @@ export interface DetectionEvent {
   occurredAt: string;
   confidence: number | null;
   snapshotPath: string | null;
+  country: string | null;
+  make: string | null;
+  model: string | null;
+  color: string | null;
+  category: string | null;
 }
 
 export interface LocalHitlistEntry {

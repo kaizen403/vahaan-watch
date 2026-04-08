@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Vehicle Surveillance",
-  description: "Central operations platform for ANPR surveillance and fleet monitoring",
+  title: "Vaahan",
+  description: "Vehicle surveillance and ANPR platform for intelligent fleet monitoring",
 };
 
 export default function RootLayout({

@@ -46,6 +46,7 @@ export const SCHEMA_DDL = [
       make TEXT,
       model TEXT,
       color TEXT,
+      category TEXT,
       synced INTEGER NOT NULL DEFAULT 0,
       syncedAt TEXT,
       createdAt TEXT NOT NULL
@@ -146,9 +147,7 @@ const SCHEMA_MIGRATIONS: readonly SchemaMigration[] = [
   },
   {
     id: "20260401_pending_detections_next_retry_at",
-    statements: [
-      `ALTER TABLE pending_detections ADD COLUMN nextRetryAt TEXT`,
-    ],
+    statements: [`ALTER TABLE pending_detections ADD COLUMN nextRetryAt TEXT`],
   },
   {
     id: "20260401_pending_detections_failed",
@@ -180,20 +179,25 @@ const SCHEMA_MIGRATIONS: readonly SchemaMigration[] = [
       `ALTER TABLE pending_match_events ADD COLUMN failed INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    id: "20260408_pending_detections_category",
+    statements: [`ALTER TABLE pending_detections ADD COLUMN category TEXT`],
+  },
 ];
 
 export function applySchemaMigrations(db: Database.Database): void {
   const appliedMigrations = new Set(
-    (db
-      .prepare(
-        `
+    (
+      db
+        .prepare(
+          `
           SELECT id
           FROM schema_migrations
           ORDER BY id ASC
         `,
-      )
-      .all() as Array<{ id: string }>)
-      .map((migration) => migration.id),
+        )
+        .all() as Array<{ id: string }>
+    ).map((migration) => migration.id),
   );
 
   const applyMigration = db.transaction((migration: SchemaMigration) => {

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Shield, Wifi, WifiOff } from "lucide-react";
+import { Loader2, Wifi, WifiOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,10 +35,12 @@ export default function PairingPage() {
       const workstationRaw = localStorage.getItem(WORKSTATION_KEY);
       if (workstationRaw) {
         try {
-          const { address: storedAddress } = JSON.parse(workstationRaw) as { address: string; name: string };
+          const { address: storedAddress } = JSON.parse(workstationRaw) as {
+            address: string;
+            name: string;
+          };
           setAddress(storedAddress);
-        } catch {
-        }
+        } catch {}
       }
       setWsUrl(stored);
       setPhase("connecting");
@@ -74,7 +76,10 @@ export default function PairingPage() {
       const res = await fetch(`${API_BASE}/api/workstations/tablet-pair`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: trimmedAddress, password: trimmedPassword }),
+        body: JSON.stringify({
+          address: trimmedAddress,
+          password: trimmedPassword,
+        }),
       });
 
       if (!res.ok) {
@@ -84,9 +89,12 @@ export default function PairingPage() {
         return;
       }
 
-      const json = await res.json() as {
+      const json = (await res.json()) as {
         success: boolean;
-        data?: { workstation: { id: string; address: string; name: string }; wsPort: number };
+        data?: {
+          workstation: { id: string; address: string; name: string };
+          wsPort: number;
+        };
       };
 
       if (!json.success || !json.data) {
@@ -99,7 +107,14 @@ export default function PairingPage() {
       const { workstation, wsPort } = json.data;
       const url = `ws://localhost:${wsPort}`;
       localStorage.setItem(STORAGE_KEY, url);
-      localStorage.setItem(WORKSTATION_KEY, JSON.stringify({ address: workstation.address, name: workstation.name }));
+      localStorage.setItem(
+        WORKSTATION_KEY,
+        JSON.stringify({
+          address: workstation.address,
+          name: workstation.name,
+        }),
+      );
+      localStorage.setItem("tablet_workstation_id", workstation.id);
       setWsUrl(url);
       setPhase("connecting");
     } catch {
@@ -117,10 +132,15 @@ export default function PairingPage() {
     setPairing(false);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(WORKSTATION_KEY);
+    localStorage.removeItem("tablet_workstation_id");
   }
 
   const isConnecting = pairing || phase === "connecting";
-  const buttonDisabled = !address.trim() || !password.trim() || isConnecting || phase === "connected";
+  const buttonDisabled =
+    !address.trim() ||
+    !password.trim() ||
+    isConnecting ||
+    phase === "connected";
   const buttonText = isConnecting
     ? "Connecting…"
     : phase === "connected"
@@ -133,10 +153,7 @@ export default function PairingPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
-          <div className="w-16 h-16 rounded-2xl glass glow-primary flex items-center justify-center mb-4">
-            <Shield className="w-8 h-8 text-primary" strokeWidth={1.5} />
-          </div>
-          <CardTitle className="text-xl">Vehicle Surveillance Tablet</CardTitle>
+          <CardTitle className="text-xl">Vaahan Tablet</CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
             Connect to a workstation to begin monitoring
           </p>
@@ -181,15 +198,18 @@ export default function PairingPage() {
                 {buttonText}
               </Button>
 
-              {(phase === "connecting" || phase === "failed" || phase === "connected") && !pairing && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleDisconnect}
-                >
-                  Cancel
-                </Button>
-              )}
+              {(phase === "connecting" ||
+                phase === "failed" ||
+                phase === "connected") &&
+                !pairing && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDisconnect}
+                  >
+                    Cancel
+                  </Button>
+                )}
             </div>
           </form>
 
@@ -215,7 +235,12 @@ export default function PairingPage() {
               >
                 {phase === "idle" && "Not connected"}
                 {phase === "connecting" && "Establishing connection…"}
-                {phase === "connected" && "Connected — waiting for health check"}
+                {phase === "connected" && (
+                  <span className="inline-flex items-center gap-1.5">
+                    Connected — waiting for health check
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  </span>
+                )}
                 {phase === "failed" && "Connection failed"}
               </p>
               {phase === "failed" && socket.error && (

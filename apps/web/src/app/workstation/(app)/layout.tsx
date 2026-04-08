@@ -61,10 +61,7 @@ export default function WorkstationLayout({ children }: { children: React.ReactN
         )}
       >
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
-            <Monitor className="w-3.5 h-3.5 text-primary" strokeWidth={1.5} />
-          </div>
-          <span className="font-bold tracking-[0.15em] text-sm text-foreground">Workstation</span>
+          <span className="font-bold tracking-[0.15em] text-sm text-foreground">Vaahan Workstation.</span>
           <span className="text-xs text-muted-foreground/50 font-mono hidden sm:inline">
             {session.address}
           </span>

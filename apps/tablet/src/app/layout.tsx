@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tablet — Vehicle Surveillance",
+  title: "Tablet — Vaahan",
   description:
     "Field tablet interface for real-time ANPR surveillance and alert monitoring",
 };

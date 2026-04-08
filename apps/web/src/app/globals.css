@@ -41,23 +41,23 @@
   --radius-lg: 0.625rem;
   --radius-xl: 0.75rem;
 
-  --color-background: oklch(0.07 0.005 260);
+  --color-background: oklch(0.09 0.02 242);
   --color-foreground: oklch(0.96 0.005 80);
 
-  --color-card: oklch(0.13 0.005 260 / 0.5);
+  --color-card: oklch(0.15 0.014 248 / 0.6);
   --color-card-foreground: oklch(0.96 0.005 80);
 
-  --color-popover: oklch(0.13 0.005 260 / 0.8);
+  --color-popover: oklch(0.14 0.014 248 / 0.88);
   --color-popover-foreground: oklch(0.96 0.005 80);
 
-  --color-primary: oklch(0.72 0.19 145);
-  --color-primary-foreground: oklch(0.15 0.01 145);
+  --color-primary: oklch(0.74 0.21 148);
+  --color-primary-foreground: oklch(0.14 0.01 148);
 
-  --color-secondary: oklch(0.20 0.005 260);
+  --color-secondary: oklch(0.20 0.014 248);
   --color-secondary-foreground: oklch(0.90 0.005 80);
 
-  --color-muted: oklch(0.20 0.005 260);
-  --color-muted-foreground: oklch(0.60 0.005 260);
+  --color-muted: oklch(0.20 0.014 248);
+  --color-muted-foreground: oklch(0.62 0.012 252);
 
   --color-accent: oklch(0.65 0.17 250);
   --color-accent-foreground: oklch(0.98 0.005 80);
@@ -76,11 +76,11 @@
 
   --color-border: oklch(1 0 0 / 0.08);
   --color-input: oklch(1 0 0 / 0.06);
-  --color-ring: oklch(0.72 0.19 145);
+  --color-ring: oklch(0.74 0.21 148);
 
-  --color-glass: oklch(1 0 0 / 0.04);
-  --color-glass-border: oklch(1 0 0 / 0.1);
-  --color-glass-hover: oklch(1 0 0 / 0.07);
+  --color-glass: oklch(0.16 0.014 248 / 0.5);
+  --color-glass-border: oklch(1 0 0 / 0.11);
+  --color-glass-hover: oklch(0.19 0.014 248 / 0.6);
 }
 
 @layer base {
@@ -96,6 +96,11 @@
 
   body {
     @apply bg-background text-foreground font-sans;
+    background-image: radial-gradient(
+      ellipse 130% 50% at 50% -8%,
+      oklch(0.16 0.06 232 / 0.4),
+      transparent 65%
+    );
   }
 }
 
@@ -107,10 +112,10 @@
 }
 
 @utility glass-heavy {
-  background: oklch(0.12 0.005 260 / 0.7);
+  background: oklch(0.13 0.015 248 / 0.82);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid oklch(1 0 0 / 0.12);
+  border: 1px solid oklch(1 0 0 / 0.1);
 }
 
 @utility glass-hover {
@@ -121,15 +126,19 @@
 }
 
 @utility glow-primary {
-  box-shadow: 0 0 20px oklch(0.72 0.19 145 / 0.15), 0 0 60px oklch(0.72 0.19 145 / 0.05);
+  box-shadow: 0 0 20px oklch(0.74 0.21 148 / 0.18), 0 0 60px oklch(0.74 0.21 148 / 0.07);
 }
 
 @utility glow-accent {
-  box-shadow: 0 0 20px oklch(0.65 0.17 250 / 0.15), 0 0 60px oklch(0.65 0.17 250 / 0.05);
+  box-shadow: 0 0 20px oklch(0.65 0.17 250 / 0.18), 0 0 60px oklch(0.65 0.17 250 / 0.07);
 }
 
 @utility glow-destructive {
-  box-shadow: 0 0 20px oklch(0.60 0.20 25 / 0.2), 0 0 60px oklch(0.60 0.20 25 / 0.05);
+  box-shadow: 0 0 20px oklch(0.60 0.20 25 / 0.22), 0 0 60px oklch(0.60 0.20 25 / 0.07);
+}
+
+@utility glow-success {
+  box-shadow: 0 0 20px oklch(0.65 0.17 160 / 0.18), 0 0 60px oklch(0.65 0.17 160 / 0.07);
 }
 
 @layer base {

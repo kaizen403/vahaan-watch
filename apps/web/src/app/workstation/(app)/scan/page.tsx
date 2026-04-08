@@ -120,7 +120,10 @@ type ScanLogEntry = {
 };
 
 function relativeTime(iso: string): string {
-  const diff = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  const diff = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(iso).getTime()) / 1000),
+  );
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   return `${Math.floor(diff / 3600)}h ago`;
@@ -151,9 +154,7 @@ function playAlertBeep() {
       osc2.start(ctx.currentTime);
       osc2.stop(ctx.currentTime + 0.6);
     }, 300);
-  } catch {
-
-  }
+  } catch {}
 }
 
 export default function WorkstationScanPage() {
@@ -182,7 +183,11 @@ export default function WorkstationScanPage() {
   }, [status]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
       Notification.requestPermission();
     }
   }, []);
@@ -201,8 +206,7 @@ export default function WorkstationScanPage() {
             if (msg.type === "status" && msg.data) {
               setConnectedTablets(msg.data.connectedTablets ?? 0);
             }
-      } catch {
-      }
+          } catch {}
         };
         ws.onclose = () => {
           setTimeout(connectBridge, 3000);
@@ -249,7 +253,9 @@ export default function WorkstationScanPage() {
       wsRef.current = null;
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => { t.stop(); });
+      streamRef.current.getTracks().forEach((t) => {
+        t.stop();
+      });
       streamRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -278,7 +284,17 @@ export default function WorkstationScanPage() {
       canvas.height = Math.round(cropHeight * scale);
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(
+        video,
+        cropX,
+        cropY,
+        cropWidth,
+        cropHeight,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
 
       canvas.toBlob(
         (blob) => {
@@ -295,6 +311,9 @@ export default function WorkstationScanPage() {
 
   async function handleDetection(detection: WsDetection) {
     try {
+      const session = JSON.parse(
+        localStorage.getItem("workstation_session") || "{}",
+      ) as Record<string, unknown>;
       const result = await api.post<ScanApiResponse>("/api/portal/scan", {
         plate: detection.plate,
         country: detection.country,
@@ -304,6 +323,8 @@ export default function WorkstationScanPage() {
         category: detection.category,
         confidence: detection.confidence,
         occurredAt: detection.timestamp,
+        workstationAddress:
+          typeof session.address === "string" ? session.address : undefined,
       });
 
       if (!result.success) return;
@@ -325,9 +346,16 @@ export default function WorkstationScanPage() {
 
       if (result.data.isHit) {
         playAlertBeep();
-        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-          const priority = result.data.matches[0]?.hitlistEntry.priority ?? "UNKNOWN";
-          const reason = result.data.matches[0]?.hitlistEntry.reasonSummary ?? "Hitlist match";
+        if (
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
+          const priority =
+            result.data.matches[0]?.hitlistEntry.priority ?? "UNKNOWN";
+          const reason =
+            result.data.matches[0]?.hitlistEntry.reasonSummary ??
+            "Hitlist match";
           new Notification(`ALERT: Plate ${entry.plate} matched!`, {
             body: `Priority: ${priority} - ${reason}`,
           });
@@ -335,14 +363,65 @@ export default function WorkstationScanPage() {
       }
 
       setTimeout(() => {
-        setScanLog((prev) => prev.map((e) => (e.id === entry.id ? { ...e, fresh: false } : e)));
+        setScanLog((prev) =>
+          prev.map((e) => (e.id === entry.id ? { ...e, fresh: false } : e)),
+        );
       }, 3000);
 
       setScanLog((prev) => [entry, ...prev].slice(0, MAX_LOG_ENTRIES));
       setTotalScans((n) => n + 1);
       if (result.data.isHit) setHitCount((n) => n + 1);
-    } catch {
-    }
+
+      if (bridgeRef.current?.readyState === WebSocket.OPEN) {
+        const det = result.data.detection;
+        bridgeRef.current.send(
+          JSON.stringify({
+            type: "detection",
+            data: {
+              id: det.id,
+              externalEventId: "",
+              plate: det.plate,
+              plateNormalized: det.plate,
+              occurredAt:
+                typeof det.occurredAt === "string"
+                  ? det.occurredAt
+                  : new Date(det.occurredAt).toISOString(),
+              confidence: det.confidence,
+              snapshotPath: null,
+              country: det.country,
+              make: det.make,
+              model: det.model,
+              color: det.color,
+              category: det.category,
+            },
+          }),
+        );
+
+        for (const m of result.data.matches) {
+          bridgeRef.current.send(
+            JSON.stringify({
+              type: "alert",
+              data: {
+                plate: det.plate,
+                normalizedPlate: det.plate,
+                priority: m.hitlistEntry.priority,
+                hitlistEntryId: m.hitlistEntry.id,
+                reasonSummary: m.hitlistEntry.reasonSummary,
+                vehicleDescription:
+                  [det.color, det.make, det.model, det.category]
+                    .filter(Boolean)
+                    .join(" · ") || null,
+                detectionId: det.id,
+                occurredAt:
+                  typeof det.occurredAt === "string"
+                    ? det.occurredAt
+                    : new Date(det.occurredAt).toISOString(),
+              },
+            }),
+          );
+        }
+      }
+    } catch {}
   }
 
   async function startScanning() {
@@ -356,7 +435,11 @@ export default function WorkstationScanPage() {
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: { ideal: "environment" } },
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: { ideal: "environment" },
+        },
       });
     } catch {
       setErrorMsg("Camera access denied. Please allow camera permissions.");
@@ -375,8 +458,18 @@ export default function WorkstationScanPage() {
     ws.binaryType = "arraybuffer";
 
     ws.onopen = () => {
-      const session = JSON.parse(localStorage.getItem("workstation_session") || "{}") as Record<string, unknown>;
-      ws.send(JSON.stringify({ type: "start", region, continuous: true, workstationAddress: typeof session.address === "string" ? session.address : "" }));
+      const session = JSON.parse(
+        localStorage.getItem("workstation_session") || "{}",
+      ) as Record<string, unknown>;
+      ws.send(
+        JSON.stringify({
+          type: "start",
+          region,
+          continuous: true,
+          workstationAddress:
+            typeof session.address === "string" ? session.address : "",
+        }),
+      );
     };
 
     ws.onmessage = (e) => {
@@ -396,8 +489,7 @@ export default function WorkstationScanPage() {
           setStatus("idle");
           teardown();
         }
-      } catch {
-      }
+      } catch {}
     };
 
     ws.onerror = () => {
@@ -422,7 +514,8 @@ export default function WorkstationScanPage() {
   }
 
   const isActive = status === "scanning" || status === "connecting";
-  const hitRate = totalScans > 0 ? ((hitCount / totalScans) * 100).toFixed(1) : "0.0";
+  const hitRate =
+    totalScans > 0 ? ((hitCount / totalScans) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -430,7 +523,9 @@ export default function WorkstationScanPage() {
         <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">Live Feed</span>
+            <span className="text-sm font-semibold text-foreground">
+              Live Feed
+            </span>
           </div>
           <Badge variant="outline" className="tabular-nums text-xs">
             {totalScans} scanned
@@ -442,10 +537,14 @@ export default function WorkstationScanPage() {
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/30 select-none">
               <Radar className="w-12 h-12 mb-3" strokeWidth={1} />
               <span className="text-sm">No detections yet</span>
-              <span className="text-xs mt-1">Start scanning to see results</span>
+              <span className="text-xs mt-1">
+                Start scanning to see results
+              </span>
             </div>
           ) : (
-            scanLog.map((entry) => <DetectionRow key={entry.id} entry={entry} />)
+            scanLog.map((entry) => (
+              <DetectionRow key={entry.id} entry={entry} />
+            ))
           )}
         </div>
 
@@ -453,7 +552,10 @@ export default function WorkstationScanPage() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Tablet className="w-3.5 h-3.5" />
             <span>Connected Tablets</span>
-            <Badge variant={connectedTablets > 0 ? "success" : "outline"} className="ml-auto text-xs">
+            <Badge
+              variant={connectedTablets > 0 ? "success" : "outline"}
+              className="ml-auto text-xs"
+            >
               {connectedTablets}
             </Badge>
           </div>
@@ -467,7 +569,10 @@ export default function WorkstationScanPage() {
               "relative w-full max-w-4xl aspect-video rounded-xl border overflow-hidden",
               status === "scanning" ? "border-primary/25" : "border-border",
             )}
-            style={{ transform: `scale(${scaleFactor})`, transformOrigin: "center center" }}
+            style={{
+              transform: `scale(${scaleFactor})`,
+              transformOrigin: "center center",
+            }}
           >
             <video
               ref={videoRef}
@@ -476,7 +581,10 @@ export default function WorkstationScanPage() {
               muted
               className={cn(
                 "w-full h-full object-cover",
-                (status === "idle" || status === "connecting" || status === "error") && "opacity-0 absolute inset-0",
+                (status === "idle" ||
+                  status === "connecting" ||
+                  status === "error") &&
+                  "opacity-0 absolute inset-0",
               )}
             />
 
@@ -495,13 +603,7 @@ export default function WorkstationScanPage() {
             )}
 
             {status === "scanning" && (
-              <>
-                <div className="absolute top-3 left-3 flex items-center gap-2 rounded-full bg-background/80 border border-primary/30 px-3 py-1.5 backdrop-blur-sm z-10">
-                  <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                  <span className="text-xs font-semibold text-primary tracking-widest">LIVE</span>
-                </div>
-                <div className="absolute inset-x-[8%] top-1/2 -translate-y-1/2 h-[42%] border border-dashed border-primary/20 rounded-lg pointer-events-none z-10" />
-              </>
+              <div className="absolute inset-x-[8%] top-1/2 -translate-y-1/2 h-[42%] border border-dashed border-primary/20 rounded-lg pointer-events-none z-10" />
             )}
           </div>
 
@@ -519,7 +621,10 @@ export default function WorkstationScanPage() {
               type="button"
               onClick={isActive ? stopScanning : startScanning}
               variant={isActive ? "outline" : "default"}
-              className={cn("h-10 px-5 gap-2 font-semibold", !isActive && "glow-primary")}
+              className={cn(
+                "h-10 px-5 gap-2 font-semibold",
+                !isActive && "glow-primary",
+              )}
             >
               <Radar className="w-4 h-4" />
               {isActive ? "Stop" : "Start Scanning"}
@@ -540,7 +645,10 @@ export default function WorkstationScanPage() {
               value={String(intervalMs)}
               onChange={(v) => setIntervalMs(Number(v))}
               disabled={isActive}
-              options={INTERVALS.map((i) => ({ value: String(i.ms), label: i.label }))}
+              options={INTERVALS.map((i) => ({
+                value: String(i.ms),
+                label: i.label,
+              }))}
             />
 
             <ControlSelect
@@ -549,12 +657,19 @@ export default function WorkstationScanPage() {
               value={String(scaleFactor)}
               onChange={(v) => setScaleFactor(Number(v))}
               disabled={false}
-              options={SCALE_OPTIONS.map((s) => ({ value: String(s.value), label: s.label }))}
+              options={SCALE_OPTIONS.map((s) => ({
+                value: String(s.value),
+                label: s.label,
+              }))}
             />
           </div>
 
           <div className="flex items-center gap-5 text-xs text-muted-foreground">
-            <StatItem icon={Activity} label="Scans" value={String(totalScans)} />
+            <StatItem
+              icon={Activity}
+              label="Scans"
+              value={String(totalScans)}
+            />
             <StatItem
               icon={ShieldAlert}
               label="Hits"
@@ -589,7 +704,10 @@ function ControlSelect({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <label htmlFor={id} className="text-xs text-muted-foreground whitespace-nowrap">
+      <label
+        htmlFor={id}
+        className="text-xs text-muted-foreground whitespace-nowrap"
+      >
         {label}
       </label>
       <div className="relative">
@@ -601,7 +719,11 @@ function ControlSelect({
           className="appearance-none rounded-lg border border-border bg-card px-2.5 py-1.5 pr-7 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50 cursor-pointer"
         >
           {options.map((o) => (
-            <option key={o.value} value={o.value} className="bg-background text-foreground">
+            <option
+              key={o.value}
+              value={o.value}
+              className="bg-background text-foreground"
+            >
               {o.label}
             </option>
           ))}
@@ -625,9 +747,19 @@ function StatItem({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <Icon className={cn("w-3.5 h-3.5", highlight ? "text-destructive" : "text-muted-foreground/60")} />
+      <Icon
+        className={cn(
+          "w-3.5 h-3.5",
+          highlight ? "text-destructive" : "text-muted-foreground/60",
+        )}
+      />
       <span className="text-muted-foreground/60">{label}</span>
-      <span className={cn("font-mono tabular-nums font-medium", highlight ? "text-destructive" : "text-foreground")}>
+      <span
+        className={cn(
+          "font-mono tabular-nums font-medium",
+          highlight ? "text-destructive" : "text-foreground",
+        )}
+      >
         {value}
       </span>
     </div>
@@ -635,7 +767,9 @@ function StatItem({
 }
 
 function DetectionRow({ entry }: { entry: ScanLogEntry }) {
-  const vehicleDetails = [entry.make, entry.model, entry.color].filter(Boolean).join(" \u00b7 ");
+  const vehicleDetails = [entry.color, entry.make, entry.model, entry.category]
+    .filter(Boolean)
+    .join(" \u00b7 ");
   const confidencePct =
     entry.confidence !== null
       ? entry.confidence <= 1
@@ -661,7 +795,10 @@ function DetectionRow({ entry }: { entry: ScanLogEntry }) {
           <span className="font-mono text-sm font-bold tracking-widest text-foreground leading-none">
             {entry.plate}
           </span>
-          <Badge variant={entry.isHit ? "destructive" : "success"} className="text-[10px] px-1.5 py-0">
+          <Badge
+            variant={entry.isHit ? "destructive" : "success"}
+            className="text-[10px] px-1.5 py-0"
+          >
             {entry.isHit ? "HIT" : "CLEAR"}
           </Badge>
         </div>
@@ -672,9 +809,15 @@ function DetectionRow({ entry }: { entry: ScanLogEntry }) {
 
       {(vehicleDetails || confidencePct !== null) && (
         <div className="mt-1 flex items-center gap-2 flex-wrap">
-          {vehicleDetails && <span className="text-[11px] text-muted-foreground">{vehicleDetails}</span>}
+          {vehicleDetails && (
+            <span className="text-[11px] text-muted-foreground">
+              {vehicleDetails}
+            </span>
+          )}
           {confidencePct !== null && (
-            <span className="text-[11px] text-muted-foreground/50 tabular-nums">{confidencePct}%</span>
+            <span className="text-[11px] text-muted-foreground/50 tabular-nums">
+              {confidencePct}%
+            </span>
           )}
         </div>
       )}
@@ -698,7 +841,9 @@ function DetectionRow({ entry }: { entry: ScanLogEntry }) {
                   </span>
                 )}
                 {!m.hitlistEntry.priority && !m.hitlistEntry.caseReference && (
-                  <span className="text-[10px] font-semibold text-destructive">Match found</span>
+                  <span className="text-[10px] font-semibold text-destructive">
+                    Match found
+                  </span>
                 )}
               </div>
               {m.hitlistEntry.reasonSummary && (

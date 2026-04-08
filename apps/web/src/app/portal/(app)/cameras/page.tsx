@@ -163,12 +163,7 @@ function CameraFeed({ workstationAddress, wsUrl = WS_URL, isActive }: CameraFeed
           )}
         </div>
       )}
-      {isLive && (
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 glass rounded-full px-2.5 py-1">
-          <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-          <span className="text-xs font-medium text-success">LIVE</span>
-        </div>
-      )}
+
     </div>
   );
 }
@@ -298,13 +293,13 @@ export default function CamerasPage() {
                     ? "outline"
                     : "destructive";
             const statusLabel =
-              ws.status === "ACTIVE"
-                ? "Online"
-                : ws.status === "PENDING"
-                  ? "Pending"
-                  : ws.status === "DISABLED"
-                    ? "Disabled"
-                    : "Offline";
+              ws.status === "PENDING"
+                ? "Pending"
+                : ws.status === "DISABLED"
+                  ? "Disabled"
+                  : ws.status === "OFFLINE"
+                    ? "Offline"
+                    : null;
             const StatusIcon =
               ws.status === "ACTIVE" ? Wifi : ws.status === "PENDING" ? Clock : WifiOff;
 

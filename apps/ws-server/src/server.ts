@@ -53,6 +53,19 @@ let detectionsCollection: string | null = null;
 let db: Pool | null = null;
 let dbInitPromise: Promise<Pool> | null = null;
 let dbRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let hitlistInterval: ReturnType<typeof setInterval> | null = null;
+
+function startHitlistPolling(): void {
+  if (hitlistInterval) return;
+  void refreshHitlistCache().catch(() => {});
+  hitlistInterval = setInterval(() => { refreshHitlistCache().catch(() => {}); }, 60_000);
+}
+
+function stopHitlistPolling(): void {
+  if (!hitlistInterval) return;
+  clearInterval(hitlistInterval);
+  hitlistInterval = null;
+}
 
 function resetDbState(): void {
   db = null;
@@ -72,12 +85,9 @@ function scheduleDbRetry(): void {
   logger.info({ retryMs: DB_RETRY_MS }, "retrying DB initialization");
   dbRetryTimer = setTimeout(() => {
     dbRetryTimer = null;
-void initDb()
-  .then(() => {
-    void refreshHitlistCache().catch(() => {});
-    setInterval(() => { refreshHitlistCache().catch(() => {}); }, 60_000);
-  })
-  .catch(() => {});
+    void initDb()
+      .then(() => { startHitlistPolling(); })
+      .catch(() => {});
   }, DB_RETRY_MS);
 }
 
@@ -165,14 +175,18 @@ function privilegedAccessMessage(): string {
 const wss = new WebSocketServer({ port: WS_PORT });
 logger.info({ port: WS_PORT }, "Carmen ANPR WS server started");
 
-void initDb().catch(() => {});
+void initDb()
+  .then(() => { startHitlistPolling(); })
+  .catch(() => {});
 
 process.on("SIGINT", async () => {
+  stopHitlistPolling();
   await closeDb().catch(() => {});
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
+  stopHitlistPolling();
   await closeDb().catch(() => {});
   process.exit(0);
 });

@@ -410,45 +410,42 @@ export default function WatchlistPage() {
         <div className="space-y-3">
           {hitlists.map((h) => (
             <div key={h.id} className="glass rounded-xl overflow-hidden">
-              <Button
-                variant="ghost"
-                onClick={() => void loadDetail(h.id)}
-                className="w-full flex items-center gap-4 px-5 py-4 text-left glass-hover transition-all h-auto justify-start"
-              >
-                {expandedId === h.id ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-foreground truncate">{h.name}</span>
-                    <Badge variant={statusBadgeVariant(h.status)} className="capitalize">
-                      {h.status.toLowerCase()}
-                    </Badge>
+              <div className="flex items-center gap-4 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => void loadDetail(h.id)}
+                  className="flex flex-1 items-center gap-4 text-left min-w-0 glass-hover transition-all rounded-lg -m-2 p-2 cursor-pointer"
+                >
+                  {expandedId === h.id ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-foreground truncate">{h.name}</span>
+                      <Badge variant={statusBadgeVariant(h.status)} className="capitalize">
+                        {h.status.toLowerCase()}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      v{h.currentVersionNumber} · {h.versions?.[0]?.entries?.length ?? 0} entries · Created {fmtDate(h.createdAt)}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    v{h.currentVersionNumber} · {h.versions?.[0]?.entries?.length ?? 0} entries · Created {fmtDate(h.createdAt)}
-                  </p>
-                </div>
+                </button>
                 <div className="flex items-center gap-2 shrink-0">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowAddVersion(showAddVersion === h.id ? null : h.id);
-                    }}
+                    onClick={() => setShowAddVersion(showAddVersion === h.id ? null : h.id)}
                     className="text-xs glass glass-hover"
                   >
                     <Upload className="h-3 w-3" />
                     Add Version
                   </Button>
                 </div>
-              </Button>
-
-              {/* add version form */}
+              </div>
               {showAddVersion === h.id && (
                 <div className="border-t border-border px-5 py-4 bg-card/30">
                   <h3 className="text-sm font-medium text-foreground mb-3">

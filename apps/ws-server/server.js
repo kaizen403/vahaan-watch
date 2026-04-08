@@ -18,6 +18,10 @@ const {
   saveDetection,
   getRecentDetections,
 } = require("./lib/detectionService");
+const {
+  startHitlistPolling,
+  stopHitlistPolling,
+} = require("./lib/hitlistClient");
 
 // Support the newer realtime env name without breaking older deployments.
 const VEHICLE_API_KEY =
@@ -62,7 +66,9 @@ function scheduleDbRetry() {
   console.log(`[db] retrying initialization in ${DB_RETRY_MS}ms`);
   dbRetryTimer = setTimeout(() => {
     dbRetryTimer = null;
-    void initDb().catch(() => {});
+    void initDb()
+      .then(() => { startHitlistPolling(); })
+      .catch(() => {});
   }, DB_RETRY_MS);
 }
 
@@ -145,11 +151,13 @@ console.log(`Carmen ANPR WS server (Vehicle API) → ws://localhost:${WS_PORT}`)
 void initDb().catch(() => {});
 
 process.on("SIGINT", async () => {
+  stopHitlistPolling();
   await closeDb().catch(() => {});
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
+  stopHitlistPolling();
   await closeDb().catch(() => {});
   process.exit(0);
 });

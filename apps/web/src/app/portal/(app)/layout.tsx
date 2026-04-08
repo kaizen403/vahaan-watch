@@ -23,7 +23,6 @@ import {
   ScanLine,
   Search,
   Settings,
-  Shield,
   X,
 } from "lucide-react";
 
@@ -143,19 +142,16 @@ function Sidebar({
         collapsed ? "w-16" : "w-64",
       )}
     >
-      <div
-        className={cn(
-          "flex items-center gap-3 px-4 py-5 border-b border-border",
-          collapsed && "px-3 justify-center",
-        )}
-      >
-        <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
-          <Shield className="w-4 h-4 text-primary" strokeWidth={1.5} />
+        <div
+          className={cn(
+            "flex items-center px-4 py-5 border-b border-border",
+            collapsed && "px-3 justify-center",
+          )}
+        >
+          {!collapsed && (
+            <span className="font-semibold tracking-tight text-sm text-foreground">Vaahan</span>
+          )}
         </div>
-        {!collapsed && (
-          <span className="font-bold tracking-[0.15em] text-sm text-foreground">Vehicle Surveillance</span>
-        )}
-      </div>
 
       <TooltipProvider>
         <nav className="flex-1 py-3 px-2 flex flex-col gap-0.5 overflow-y-auto">
@@ -171,7 +167,7 @@ function Sidebar({
                     className={cn(
                       "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all h-auto justify-start",
                       active
-                        ? "bg-primary/12 text-primary border border-primary/20"
+                        ? "bg-primary/15 text-primary border border-primary/28"
                         : "text-muted-foreground hover:text-foreground glass-hover border border-transparent",
                       collapsed && "justify-center px-2.5",
                     )}
@@ -247,12 +243,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
         )}
       >
         <div className="flex items-center justify-between px-4 py-5 border-b border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center">
-              <Shield className="w-4 h-4 text-primary" strokeWidth={1.5} />
-            </div>
-            <span className="font-bold tracking-[0.15em] text-sm text-foreground">Vehicle Surveillance</span>
-          </div>
+          <span className="font-semibold tracking-tight text-sm text-foreground">Vaahan</span>
           <Button
             type="button"
             variant="ghost"
@@ -280,7 +271,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
                 className={cn(
                   "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all h-auto justify-start",
                   active
-                    ? "bg-primary/12 text-primary border border-primary/20"
+                    ? "bg-primary/15 text-primary border border-primary/28"
                     : "text-muted-foreground hover:text-foreground glass-hover border border-transparent",
                 )}
                 aria-current={active ? "page" : undefined}
@@ -364,7 +355,7 @@ function Header({
       <div className="flex items-center gap-2">
         {user && (
           <div className="hidden sm:flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
+            <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/35 flex items-center justify-center shrink-0">
               <span className="text-xs font-bold text-primary">
                 {user.name.charAt(0).toUpperCase()}
               </span>
@@ -406,9 +397,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl glass glow-primary flex items-center justify-center">
-            <Shield className="w-6 h-6 text-primary" strokeWidth={1.5} style={{ animation: "pulse 2s infinite" }} />
-          </div>
+          <span className="font-semibold text-lg text-foreground">Vaahan</span>
           <p className="text-sm text-muted-foreground">Verifying session…</p>
         </div>
       </div>

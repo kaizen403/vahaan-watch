@@ -70,6 +70,7 @@ export function createApp() {
 
   app.use("/api/workstations/*/stats", requireUser, requireRole("admin", "operator"));
   app.use("/api/detections", requireUser, requireRole("admin", "operator"));
+  app.use("/api/detections/*", requireUser, requireRole("admin", "operator"));
   app.use("/api/analytics/*", requireUser, requireRole("admin", "operator"));
   app.route("/", workstationStatsRoutes);
 

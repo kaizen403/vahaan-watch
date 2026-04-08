@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useWorkstation } from "@/contexts/WorkstationContext";
 import type { DetectionEvent } from "@/types/workstation";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 import { BarChart3, Activity, ScanLine, Target, Gauge } from "lucide-react";
 import {
   AreaChart,
@@ -25,6 +26,18 @@ type ScanTooltipProps = {
   label?: string;
 };
 
+type ApiStats = {
+  totalDetections: number;
+  detectionsToday: number;
+  totalMatches: number;
+  matchesToday: number;
+  lastSeenAt: string | null;
+};
+
+type ApiResp<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
+
 function ScanTooltip({ active, payload, label }: ScanTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
@@ -37,10 +50,23 @@ function ScanTooltip({ active, payload, label }: ScanTooltipProps) {
   );
 }
 
+function vehicleSummary(det: DetectionEvent): string {
+  return [det.color, det.make, det.model, det.category]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export default function AnalyticsPage() {
   const { lastDetection, alerts } = useWorkstation();
   const [detections, setDetections] = useState<DetectionEvent[]>([]);
+  const [workstationId, setWorkstationId] = useState<string | null>(null);
+  const [apiStats, setApiStats] = useState<ApiStats | null>(null);
   const prevRef = useRef<DetectionEvent | null>(null);
+
+  useEffect(() => {
+    const id = localStorage.getItem("tablet_workstation_id");
+    setWorkstationId(id);
+  }, []);
 
   useEffect(() => {
     if (lastDetection && lastDetection !== prevRef.current) {
@@ -51,8 +77,32 @@ export default function AnalyticsPage() {
     }
   }, [lastDetection]);
 
-  const hitRate =
-    detections.length > 0
+  useEffect(() => {
+    if (!workstationId) return;
+
+    const fetchStats = async () => {
+      try {
+        const response = await api.get<ApiResp<ApiStats>>(
+          `/api/workstations/${workstationId}/stats`,
+        );
+        if (response.success) {
+          setApiStats(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+      }
+    };
+
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, [workstationId]);
+
+  const hitRate = apiStats
+    ? apiStats.detectionsToday > 0
+      ? `${((apiStats.matchesToday / apiStats.detectionsToday) * 100).toFixed(1)}%`
+      : "0%"
+    : detections.length > 0
       ? `${((alerts.length / detections.length) * 100).toFixed(1)}%`
       : "N/A";
 
@@ -84,30 +134,38 @@ export default function AnalyticsPage() {
 
   const stats = [
     {
-      label: "Scans This Session",
-      value: detections.length.toString(),
+      label: "Scans Today" as const,
+      value: apiStats
+        ? apiStats.detectionsToday.toString()
+        : detections.length.toString(),
+      subtext: apiStats ? `${detections.length} this session` : undefined,
       icon: ScanLine,
-      colorClass: "text-foreground",
+      colorClass: "text-foreground" as const,
     },
     {
-      label: "Hits This Session",
-      value: alerts.length.toString(),
+      label: "Hits Today" as const,
+      value: apiStats
+        ? apiStats.matchesToday.toString()
+        : alerts.length.toString(),
+      subtext: apiStats ? `${alerts.length} this session` : undefined,
       icon: Activity,
-      colorClass: "text-destructive",
+      colorClass: "text-destructive" as const,
     },
     {
-      label: "Hit Rate",
+      label: "Hit Rate" as const,
       value: hitRate,
+      subtext: undefined,
       icon: Target,
-      colorClass: "text-warning",
+      colorClass: "text-warning" as const,
     },
     {
-      label: "Avg Confidence",
+      label: "Avg Confidence" as const,
       value: avgConf,
+      subtext: undefined,
       icon: Gauge,
-      colorClass: "text-accent",
+      colorClass: "text-accent" as const,
     },
-  ] as const;
+  ];
 
   return (
     <div className="space-y-5">
@@ -122,7 +180,7 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {stats.map(({ label, value, icon: Icon, colorClass }) => (
+        {stats.map(({ label, value, subtext, icon: Icon, colorClass }) => (
           <div
             key={label}
             className="glass rounded-xl p-4 flex items-start gap-3"
@@ -140,6 +198,9 @@ export default function AnalyticsPage() {
               >
                 {value}
               </p>
+              {subtext && (
+                <p className="text-xs text-muted-foreground mt-1">{subtext}</p>
+              )}
             </div>
           </div>
         ))}
@@ -235,27 +296,39 @@ export default function AnalyticsPage() {
                       isHit ? "bg-destructive" : "bg-success",
                     )}
                   />
-                  <span className="font-mono text-sm font-semibold text-foreground flex-1 tracking-wider truncate">
-                    {det.plate}
-                  </span>
-                  <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                    {det.confidence != null
-                      ? `${det.confidence.toFixed(0)}%`
-                      : "—"}
-                  </span>
-                  {isHit && (
-                    <span className="text-[10px] font-bold text-destructive uppercase tracking-widest shrink-0">
-                      HIT
-                    </span>
-                  )}
-                  <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                    {new Date(det.occurredAt).toLocaleTimeString("en-GB", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                      hour12: false,
-                    })}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-semibold text-foreground tracking-wider truncate">
+                        {det.plate}
+                      </span>
+                      {isHit && (
+                        <span className="text-[10px] font-bold text-destructive uppercase tracking-widest shrink-0">
+                          HIT
+                        </span>
+                      )}
+                    </div>
+                    {vehicleSummary(det) && (
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        {vehicleSummary(det)}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-muted-foreground">
+                      {det.country && <span>{det.country}</span>}
+                      <span className="tabular-nums shrink-0">
+                        {det.confidence != null
+                          ? `${(det.confidence * 100).toFixed(0)}%`
+                          : "—"}
+                      </span>
+                      <span className="tabular-nums shrink-0">
+                        {new Date(det.occurredAt).toLocaleTimeString("en-GB", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: false,
+                        })}
+                      </span>
+                    </div>
+                  </div>
                 </li>
               );
             })}

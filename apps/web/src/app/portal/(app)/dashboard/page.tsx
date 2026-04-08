@@ -151,7 +151,7 @@ function StatCard({
   return (
     <Card className="glass glass-hover transition-all">
       <CardContent className="p-6">
-      <div className="text-muted-foreground">{icon}</div>
+      <div>{icon}</div>
       <div className="mt-4">
         <div className="text-3xl font-bold text-foreground tabular-nums">{value}</div>
         <div className="mt-1 text-sm text-muted-foreground">{label}</div>
@@ -253,7 +253,7 @@ export default function DashboardPage() {
         ) : (
           <>
             <StatCard
-              icon={<Monitor className="h-5 w-5" />}
+              icon={<Monitor className="h-5 w-5 text-primary" />}
               label="Total Workstations"
               value={wsList.length}
               sub={
@@ -265,12 +265,12 @@ export default function DashboardPage() {
               }
             />
             <StatCard
-              icon={<Tablet className="h-5 w-5" />}
+              icon={<Tablet className="h-5 w-5 text-accent" />}
               label="Total Tablets"
               value={devices?.tablets.length ?? 0}
             />
             <StatCard
-              icon={<Link2 className="h-5 w-5" />}
+              icon={<Link2 className="h-5 w-5 text-success" />}
               label="Active Pairings"
               value={activePairings}
               sub={
@@ -280,7 +280,7 @@ export default function DashboardPage() {
               }
             />
             <StatCard
-              icon={<FileText className="h-5 w-5" />}
+              icon={<FileText className="h-5 w-5 text-warning" />}
               label="Active Hitlists"
               value={activeHitlists}
               sub={
@@ -297,7 +297,7 @@ export default function DashboardPage() {
         <Card className="glass xl:col-span-2">
           <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-5">
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <Activity className="h-4 w-4 text-accent" />
             <h2 className="text-sm font-semibold text-foreground">Device Status Distribution</h2>
           </div>
           {loading ? (
@@ -345,7 +345,7 @@ export default function DashboardPage() {
         <Card className="glass">
           <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-5">
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <Activity className="h-4 w-4 text-info" />
             <h2 className="text-sm font-semibold text-foreground">System Status</h2>
           </div>
           {loading ? (
@@ -381,7 +381,7 @@ export default function DashboardPage() {
       <Card className="glass">
         <CardContent className="p-6">
           <div className="flex items-center gap-2 mb-5">
-            <Monitor className="h-4 w-4 text-muted-foreground" />
+            <Monitor className="h-4 w-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">Workstation Health</h2>
           </div>
 

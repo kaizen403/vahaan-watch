@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
 import type { AppBindings } from "../types.js";
 import { prisma } from "../lib/prisma.js";
@@ -10,7 +11,8 @@ export const ingestRoutes = new Hono<AppBindings>();
 ingestRoutes.post("/api/ingest/detections", async (c) => {
   const device = c.get("device");
   const body = await c.req.json();
-  const externalEventId = typeof body.externalEventId === "string" ? body.externalEventId : "";
+  const externalEventId =
+    typeof body.externalEventId === "string" ? body.externalEventId : "";
   const plate = typeof body.plate === "string" ? body.plate.trim() : "";
   const occurredAt = parseOptionalDateInput(body.occurredAt);
 
@@ -29,10 +31,16 @@ ingestRoutes.post("/api/ingest/detections", async (c) => {
   const PLATE_REGEX = /^[A-Z0-9]{1,20}$/;
   const normalizedPlate = plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!PLATE_REGEX.test(normalizedPlate)) {
-    return fail(c, 400, "plate must contain at least 1 alphanumeric character.");
+    return fail(
+      c,
+      400,
+      "plate must contain at least 1 alphanumeric character.",
+    );
   }
 
-  const existing = await prisma.detection.findUnique({ where: { externalEventId } });
+  const existing = await prisma.detection.findUnique({
+    where: { externalEventId },
+  });
   if (existing) {
     return ok(c, existing);
   }
@@ -50,7 +58,8 @@ ingestRoutes.post("/api/ingest/detections", async (c) => {
       color: typeof body.color === "string" ? body.color : null,
       category: typeof body.category === "string" ? body.category : null,
       confidence: typeof body.confidence === "number" ? body.confidence : null,
-      snapshotUrl: typeof body.snapshotUrl === "string" ? body.snapshotUrl : null,
+      snapshotUrl:
+        typeof body.snapshotUrl === "string" ? body.snapshotUrl : null,
       rawPayload: body,
     },
   });
@@ -63,23 +72,105 @@ ingestRoutes.post("/api/ingest/detections", async (c) => {
       payload: body,
     },
   });
-  await prisma.$executeRaw`SELECT pg_notify('outbox_new_job', 'trigger')`;
+
+  const matchingEntries = await prisma.hitlistEntry.findMany({
+    where: {
+      plateNormalized: normalizedPlate,
+      status: "active",
+      hitlistVersion: {
+        hitlist: { status: "ACTIVE" },
+      },
+    },
+    select: {
+      id: true,
+      plateOriginal: true,
+      priority: true,
+      reasonSummary: true,
+      caseReference: true,
+      sourceAgency: true,
+    },
+  });
+
+  const existingMatchEntryIds = new Set(
+    (
+      await prisma.matchEvent.findMany({
+        where: { detectionId: detection.id },
+        select: { hitlistEntryId: true },
+      })
+    ).map((m) => m.hitlistEntryId),
+  );
+
+  const serverMatchEvents = [];
+
+  for (const entry of matchingEntries) {
+    if (existingMatchEntryIds.has(entry.id)) continue;
+
+    const matchExternalId = `server-match-${randomUUID()}`;
+    const matchEvent = await prisma.matchEvent.create({
+      data: {
+        externalEventId: matchExternalId,
+        detectionId: detection.id,
+        workstationId: device.token.workstationId,
+        hitlistEntryId: entry.id,
+        alertStatus: "PENDING",
+      },
+    });
+
+    await prisma.outboxJob.create({
+      data: {
+        topic: "match-event.created",
+        aggregateType: "match_event",
+        aggregateId: matchEvent.id,
+        payload: {
+          externalEventId: matchExternalId,
+          detectionId: detection.id,
+          plate,
+          hitlistEntryId: entry.id,
+          priority: entry.priority,
+          reasonSummary: entry.reasonSummary,
+        },
+      },
+    });
+
+    serverMatchEvents.push({
+      id: matchEvent.id,
+      alertStatus: matchEvent.alertStatus,
+      hitlistEntry: entry,
+    });
+  }
+
+  if (serverMatchEvents.length > 0 || matchingEntries.length > 0) {
+    await prisma.$executeRaw`SELECT pg_notify('outbox_new_job', 'trigger')`;
+  }
 
   await writeAuditLog({
     actorDevice: device,
     action: "detection.ingested",
     entityType: "detection",
     entityId: detection.id,
-    metadata: { externalEventId, plate },
+    metadata: {
+      externalEventId,
+      plate,
+      serverMatchCount: serverMatchEvents.length,
+    },
   });
 
-  return ok(c, detection, 201);
+  return ok(
+    c,
+    {
+      ...detection,
+      serverMatches: serverMatchEvents,
+      isHit: serverMatchEvents.length > 0,
+    },
+    201,
+  );
 });
 
 ingestRoutes.post("/api/ingest/match-events", async (c) => {
   const device = c.get("device");
   const body = await c.req.json();
-  const externalEventId = typeof body.externalEventId === "string" ? body.externalEventId : "";
+  const externalEventId =
+    typeof body.externalEventId === "string" ? body.externalEventId : "";
 
   if (!device?.token.workstationId) {
     return fail(c, 400, "Match ingest requires a workstation token.");
@@ -89,7 +180,9 @@ ingestRoutes.post("/api/ingest/match-events", async (c) => {
     return fail(c, 400, "externalEventId is required.");
   }
 
-  const existing = await prisma.matchEvent.findUnique({ where: { externalEventId } });
+  const existing = await prisma.matchEvent.findUnique({
+    where: { externalEventId },
+  });
   if (existing) {
     return ok(c, existing);
   }
@@ -97,9 +190,11 @@ ingestRoutes.post("/api/ingest/match-events", async (c) => {
   const matchEvent = await prisma.matchEvent.create({
     data: {
       externalEventId,
-      detectionId: typeof body.detectionId === "string" ? body.detectionId : null,
+      detectionId:
+        typeof body.detectionId === "string" ? body.detectionId : null,
       workstationId: device.token.workstationId,
-      hitlistEntryId: typeof body.hitlistEntryId === "string" ? body.hitlistEntryId : null,
+      hitlistEntryId:
+        typeof body.hitlistEntryId === "string" ? body.hitlistEntryId : null,
       alertStatus:
         body.alertStatus === "ACKNOWLEDGED" ||
         body.alertStatus === "ESCALATED" ||

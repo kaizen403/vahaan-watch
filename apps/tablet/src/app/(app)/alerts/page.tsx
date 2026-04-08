@@ -36,7 +36,9 @@ interface ApiMatchEvent {
   occurredAt: string;
 }
 
-type ApiResp<T> = { success: true; data: T } | { success: false; error: string };
+type ApiResp<T> =
+  | { success: true; data: T }
+  | { success: false; error: string };
 
 interface DisplayAlert {
   id: string | null;
@@ -152,9 +154,10 @@ export default function AlertsPage() {
       const path = workstationId
         ? `/api/match-events?workstationId=${encodeURIComponent(workstationId)}&limit=50`
         : `/api/match-events?limit=50`;
-      const resp = await api.get<ApiResp<ApiMatchEvent[]>>(path);
+      const resp =
+        await api.get<ApiResp<{ items: ApiMatchEvent[]; total: number }>>(path);
       if (resp.success) {
-        setApiAlerts(resp.data.map(fromApiEvent));
+        setApiAlerts(resp.data.items.map(fromApiEvent));
       } else {
         setError(resp.error);
       }
@@ -182,13 +185,17 @@ export default function AlertsPage() {
       const ids = added.map((a) => a.detectionId);
       setNewIds((prev) => {
         const next = new Set(prev);
-        ids.forEach((id) => { next.add(id); });
+        ids.forEach((id) => {
+          next.add(id);
+        });
         return next;
       });
       timer = setTimeout(() => {
         setNewIds((prev) => {
           const next = new Set(prev);
-          ids.forEach((id) => { next.delete(id); });
+          ids.forEach((id) => {
+            next.delete(id);
+          });
           return next;
         });
       }, 3000);

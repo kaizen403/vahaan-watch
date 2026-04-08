@@ -248,7 +248,7 @@ export default function SettingsPage() {
           <h2 className="text-sm font-medium text-foreground">App Info</h2>
         </div>
         <RowItem label="Application">
-          <span>Vehicle Surveillance Tablet</span>
+          <span>Vaahan Tablet</span>
         </RowItem>
         <RowItem label="Version">
           <span className="font-mono">v1.0.0</span>

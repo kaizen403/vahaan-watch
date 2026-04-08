@@ -64,7 +64,12 @@ function toErrorMessage(error: unknown): string {
 }
 
 function isLogLevel(value: string): value is LogLevel {
-  return value === "debug" || value === "info" || value === "warn" || value === "error";
+  return (
+    value === "debug" ||
+    value === "info" ||
+    value === "warn" ||
+    value === "error"
+  );
 }
 
 function normalizePlate(value: string): string {
@@ -99,7 +104,11 @@ function toComponentStatus(ok: boolean): ComponentHealth["status"] {
 }
 
 function buildVehicleDescription(entry: LocalHitlistEntry): string | null {
-  const parts = [entry.vehicleColor, entry.vehicleMake, entry.vehicleModel].filter(
+  const parts = [
+    entry.vehicleColor,
+    entry.vehicleMake,
+    entry.vehicleModel,
+  ].filter(
     (part): part is string => typeof part === "string" && part.length > 0,
   );
 
@@ -120,10 +129,17 @@ export function buildDetectionArtifacts(params: {
   confidence: number | null;
   snapshotPath: string | null;
   match: MatchResult;
+  country?: string;
+  make?: string;
+  model?: string;
+  color?: string;
+  category?: string;
 }): DetectionArtifacts {
   const detectionId = randomUUID();
   const externalEventId = randomUUID();
-  const primaryEntry = params.match.matched ? params.match.entries[0] : undefined;
+  const primaryEntry = params.match.matched
+    ? params.match.entries[0]
+    : undefined;
 
   const pendingDetection: PendingDetection = {
     id: detectionId,
@@ -134,10 +150,11 @@ export function buildDetectionArtifacts(params: {
     confidence: params.confidence,
     snapshotPath: params.snapshotPath,
     hitlistId: primaryEntry?.hitlistId ?? null,
-    country: primaryEntry?.countryOrRegion ?? null,
-    make: primaryEntry?.vehicleMake ?? null,
-    model: primaryEntry?.vehicleModel ?? null,
-    color: primaryEntry?.vehicleColor ?? null,
+    country: params.country ?? primaryEntry?.countryOrRegion ?? null,
+    make: params.make ?? primaryEntry?.vehicleMake ?? null,
+    model: params.model ?? primaryEntry?.vehicleModel ?? null,
+    color: params.color ?? primaryEntry?.vehicleColor ?? null,
+    category: params.category ?? null,
     synced: 0,
     syncedAt: null,
     createdAt: params.occurredAt,
@@ -151,33 +168,38 @@ export function buildDetectionArtifacts(params: {
     occurredAt: pendingDetection.occurredAt,
     confidence: pendingDetection.confidence,
     snapshotPath: pendingDetection.snapshotPath,
+    country: pendingDetection.country,
+    make: pendingDetection.make,
+    model: pendingDetection.model,
+    color: pendingDetection.color,
+    category: pendingDetection.category,
   };
 
   const pendingMatchEvents = params.match.matched
     ? params.match.entries.map((entry) => ({
-      id: randomUUID(),
-      externalEventId: randomUUID(),
-      detectionId: null,
-      hitlistEntryId: entry.id,
-      alertStatus: "PENDING" as const,
-      note: entry.reasonSummary,
-      synced: 0,
-      syncedAt: null,
-      createdAt: params.occurredAt,
-    }))
+        id: randomUUID(),
+        externalEventId: randomUUID(),
+        detectionId: null,
+        hitlistEntryId: entry.id,
+        alertStatus: "PENDING" as const,
+        note: entry.reasonSummary,
+        synced: 0,
+        syncedAt: null,
+        createdAt: params.occurredAt,
+      }))
     : [];
 
   const alerts = params.match.matched
     ? params.match.entries.map((entry) => ({
-      plate: params.plate,
-      normalizedPlate: params.normalizedPlate,
-      priority: entry.priority,
-      hitlistEntryId: entry.id,
-      reasonSummary: entry.reasonSummary,
-      vehicleDescription: buildVehicleDescription(entry),
-      detectionId,
-      occurredAt: params.occurredAt,
-    }))
+        plate: params.plate,
+        normalizedPlate: params.normalizedPlate,
+        priority: entry.priority,
+        hitlistEntryId: entry.id,
+        reasonSummary: entry.reasonSummary,
+        vehicleDescription: buildVehicleDescription(entry),
+        detectionId,
+        occurredAt: params.occurredAt,
+      }))
     : [];
 
   return {
@@ -188,7 +210,9 @@ export function buildDetectionArtifacts(params: {
   };
 }
 
-async function ensureRuntimeDirectories(config: WorkstationConfig): Promise<void> {
+async function ensureRuntimeDirectories(
+  config: WorkstationConfig,
+): Promise<void> {
   await mkdir(dirname(config.dbPath), { recursive: true });
   await mkdir(config.snapshotDir, { recursive: true });
 }
@@ -199,7 +223,9 @@ async function loadRuntimeModules(): Promise<{
   saveSnapshot: SnapshotModule["saveSnapshot"];
   cleanExpiredSnapshots: SnapshotModule["cleanExpiredSnapshots"];
 }> {
-  const cameraModule = (await import(cameraAdapterModulePath)) as CameraAdapterModule;
+  const cameraModule = (await import(
+    cameraAdapterModulePath
+  )) as CameraAdapterModule;
   const ocrModule = (await import(ocrAdapterModulePath)) as OcrProviderModule;
   const snapshotModule = (await import(snapshotModulePath)) as SnapshotModule;
 
@@ -211,11 +237,17 @@ async function loadRuntimeModules(): Promise<{
   };
 }
 
-async function bootstrapDeviceToken(api: CentralApiClient, config: WorkstationConfig, db: DbClient): Promise<string> {
+async function bootstrapDeviceToken(
+  api: CentralApiClient,
+  config: WorkstationConfig,
+  db: DbClient,
+): Promise<string> {
   const envToken = process.env.DEVICE_TOKEN?.trim();
   if (envToken) {
     api.setDeviceToken(envToken);
-    logger.info("using device token from environment", { deviceId: config.deviceId });
+    logger.info("using device token from environment", {
+      deviceId: config.deviceId,
+    });
     return envToken;
   }
 
@@ -226,7 +258,10 @@ async function bootstrapDeviceToken(api: CentralApiClient, config: WorkstationCo
     return storedToken;
   }
 
-  if (!process.env.DEVICE_PROVISIONING_TOKEN && config.deviceProvisioningToken) {
+  if (
+    !process.env.DEVICE_PROVISIONING_TOKEN &&
+    config.deviceProvisioningToken
+  ) {
     process.env.DEVICE_PROVISIONING_TOKEN = config.deviceProvisioningToken;
   }
 
@@ -251,17 +286,12 @@ async function bootstrapDeviceToken(api: CentralApiClient, config: WorkstationCo
   return registration.deviceToken;
 }
 
-
 async function cleanupSnapshots(
   cleanExpiredSnapshots: SnapshotModule["cleanExpiredSnapshots"],
   db: DbClient,
   config: WorkstationConfig,
 ): Promise<void> {
-  const attempts: unknown[][] = [
-    [{ db, config }],
-    [db, config],
-    [db],
-  ];
+  const attempts: unknown[][] = [[{ db, config }], [db, config], [db]];
 
   let lastError: unknown = null;
   for (const args of attempts) {
@@ -279,7 +309,11 @@ async function cleanupSnapshots(
   }
 }
 
-async function updateRuntimeHealthSnapshots(db: DbClient, camera: CameraAdapter, ocr: OcrProvider): Promise<void> {
+async function updateRuntimeHealthSnapshots(
+  db: DbClient,
+  camera: CameraAdapter,
+  ocr: OcrProvider,
+): Promise<void> {
   const now = new Date().toISOString();
 
   try {
@@ -317,10 +351,6 @@ async function updateRuntimeHealthSnapshots(db: DbClient, camera: CameraAdapter,
   }
 }
 
-
-
-
-
 class Alerter {
   public constructor(
     private readonly tabletBridge: TabletBridge,
@@ -342,15 +372,19 @@ class Alerter {
 
     for (const alert of alerts) {
       this.tabletBridge.broadcast({ type: "alert", data: alert });
-      await this.ttsAnnouncer.announce(alert.reasonSummary ?? `match for ${alert.plate}`);
+      await this.ttsAnnouncer.announce(
+        alert.reasonSummary ?? `match for ${alert.plate}`,
+      );
     }
   }
 }
 
-async function fetchAssignedHitlistIds(api: CentralApiClient): Promise<string[]> {
+async function fetchAssignedHitlistIds(
+  api: CentralApiClient,
+): Promise<string[]> {
   try {
     const resp = await api.getAssignedHitlists();
-    return resp.hitlists.map(h => h.hitlistId);
+    return resp.hitlists.map((h) => h.hitlistId);
   } catch (error) {
     logger.warn("failed to fetch assigned hitlists, using empty list", {
       error: error instanceof Error ? error.message : String(error),
@@ -382,7 +416,9 @@ export async function main(): Promise<void> {
   const tabletBridge = new TabletBridge(config);
   const alerter = new Alerter(tabletBridge, ttsAnnouncer);
 
-  const camera = runtimeModules ? new runtimeModules.FfmpegCameraAdapter(config) : null;
+  const camera = runtimeModules
+    ? new runtimeModules.FfmpegCameraAdapter(config)
+    : null;
 
   let ocr: OcrProvider | null = null;
   if (useTesseract && runtimeModules) {
@@ -464,7 +500,13 @@ export async function main(): Promise<void> {
     confidence: number | null,
     occurredAt: string,
     frameData: Buffer | null,
-    extraFields?: { country?: string; make?: string; model?: string; color?: string; category?: string },
+    extraFields?: {
+      country?: string;
+      make?: string;
+      model?: string;
+      color?: string;
+      category?: string;
+    },
   ): void => {
     const normalizedPlate = normalizePlate(plate);
     if (!normalizedPlate) return;
@@ -473,14 +515,23 @@ export async function main(): Promise<void> {
     let snapshotPath: string | null = null;
 
     if (match.matched && frameData && runtimeModules) {
-      runtimeModules.saveSnapshot(frameData, config).then((result: unknown) => {
-        const path = extractSnapshotPath(result);
-        if (path) {
-          logger.debug("snapshot saved for match", { plate: normalizedPlate, path });
-        }
-      }).catch((err: unknown) => {
-        logger.warn("snapshot capture failed", { plate: normalizedPlate, error: toErrorMessage(err) });
-      });
+      runtimeModules
+        .saveSnapshot(frameData, config)
+        .then((result: unknown) => {
+          const path = extractSnapshotPath(result);
+          if (path) {
+            logger.debug("snapshot saved for match", {
+              plate: normalizedPlate,
+              path,
+            });
+          }
+        })
+        .catch((err: unknown) => {
+          logger.warn("snapshot capture failed", {
+            plate: normalizedPlate,
+            error: toErrorMessage(err),
+          });
+        });
     }
 
     const artifacts = buildDetectionArtifacts({
@@ -490,14 +541,12 @@ export async function main(): Promise<void> {
       confidence,
       snapshotPath,
       match,
+      country: extraFields?.country,
+      make: extraFields?.make,
+      model: extraFields?.model,
+      color: extraFields?.color,
+      category: extraFields?.category,
     });
-
-    if (extraFields) {
-      if (extraFields.country) artifacts.pendingDetection.country = extraFields.country;
-      if (extraFields.make) artifacts.pendingDetection.make = extraFields.make;
-      if (extraFields.model) artifacts.pendingDetection.model = extraFields.model;
-      if (extraFields.color) artifacts.pendingDetection.color = extraFields.color;
-    }
 
     db.insertDetection(artifacts.pendingDetection);
 
@@ -505,10 +554,17 @@ export async function main(): Promise<void> {
       db.insertMatchEvent(pendingMatchEvent);
     }
 
-    tabletBridge.broadcast({ type: "detection", data: artifacts.detectionEvent });
+    tabletBridge.broadcast({
+      type: "detection",
+      data: artifacts.detectionEvent,
+    });
 
     if (match.matched) {
-      void alerter.handleMatch(artifacts.detectionEvent, match, artifacts.alerts);
+      void alerter.handleMatch(
+        artifacts.detectionEvent,
+        match,
+        artifacts.alerts,
+      );
     }
   };
 
@@ -518,7 +574,10 @@ export async function main(): Promise<void> {
 
     await runSerialized("heartbeat", "heartbeat", async () => {
       await heartbeatService.sendHeartbeat();
-      tabletBridge.broadcast({ type: "health", data: heartbeatService.getHealthReport() });
+      tabletBridge.broadcast({
+        type: "health",
+        data: heartbeatService.getHealthReport(),
+      });
     });
 
     timerHandles.push(
@@ -536,7 +595,10 @@ export async function main(): Promise<void> {
             await updateRuntimeHealthSnapshots(db, camera, ocr);
           }
           await heartbeatService.sendHeartbeat();
-          tabletBridge.broadcast({ type: "health", data: heartbeatService.getHealthReport() });
+          tabletBridge.broadcast({
+            type: "health",
+            data: heartbeatService.getHealthReport(),
+          });
         });
       }, config.heartbeatIntervalMs),
     );
@@ -544,18 +606,28 @@ export async function main(): Promise<void> {
     timerHandles.push(
       setInterval(() => {
         void runSerialized("outbox", "outbox flush", async () => {
-          await outboxFlusher.flush(config.outboxBatchSize, config.detectionBatchSize);
+          await outboxFlusher.flush(
+            config.outboxBatchSize,
+            config.detectionBatchSize,
+          );
         });
       }, config.outboxFlushIntervalMs),
     );
 
     if (runtimeModules) {
       timerHandles.push(
-        setInterval(() => {
-          void runSerialized("cleanup", "snapshot cleanup", async () => {
-            await cleanupSnapshots(runtimeModules.cleanExpiredSnapshots, db, config);
-          });
-        }, Math.max(config.heartbeatIntervalMs, 60_000)),
+        setInterval(
+          () => {
+            void runSerialized("cleanup", "snapshot cleanup", async () => {
+              await cleanupSnapshots(
+                runtimeModules.cleanExpiredSnapshots,
+                db,
+                config,
+              );
+            });
+          },
+          Math.max(config.heartbeatIntervalMs, 60_000),
+        ),
       );
     }
 
@@ -592,12 +664,18 @@ export async function main(): Promise<void> {
       await camera.start();
       await updateRuntimeHealthSnapshots(db, camera, ocr);
 
-      const loopDelayMs = Math.max(1, Math.floor(1000 / Math.max(config.cameraFps, 1)));
-      logger.info(`workstation agent started (${useCarmenCloud ? "carmen-cloud" : "tesseract"} mode)`, {
-        deviceId: config.deviceId,
-        cameraFps: config.cameraFps,
-        tabletWsPort: config.tabletWsPort,
-      });
+      const loopDelayMs = Math.max(
+        1,
+        Math.floor(1000 / Math.max(config.cameraFps, 1)),
+      );
+      logger.info(
+        `workstation agent started (${useCarmenCloud ? "carmen-cloud" : "tesseract"} mode)`,
+        {
+          deviceId: config.deviceId,
+          cameraFps: config.cameraFps,
+          tabletWsPort: config.tabletWsPort,
+        },
+      );
 
       while (!shuttingDown) {
         try {
@@ -616,17 +694,21 @@ export async function main(): Promise<void> {
               result.confidence,
               frame.timestamp.toISOString(),
               frame.data,
-              result.country ? {
-                country: result.country,
-                make: result.make,
-                model: result.model,
-                color: result.color,
-                category: result.category,
-              } : undefined,
+              result.country
+                ? {
+                    country: result.country,
+                    make: result.make,
+                    model: result.model,
+                    color: result.color,
+                    category: result.category,
+                  }
+                : undefined,
             );
           }
         } catch (error) {
-          logger.error("frame processing failed", { error: toErrorMessage(error) });
+          logger.error("frame processing failed", {
+            error: toErrorMessage(error),
+          });
         }
 
         await sleep(loopDelayMs);

@@ -1,6 +1,11 @@
 export type DeviceStatus = "PENDING" | "ACTIVE" | "OFFLINE" | "DISABLED";
 export type HitlistStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
-export type AlertStatus = "PENDING" | "ACKNOWLEDGED" | "ESCALATED" | "FALSE_POSITIVE" | "RESOLVED";
+export type AlertStatus =
+  | "PENDING"
+  | "ACKNOWLEDGED"
+  | "ESCALATED"
+  | "FALSE_POSITIVE"
+  | "RESOLVED";
 export type SyncScope = "HITLIST" | "DETECTIONS" | "MATCH_EVENTS" | "TELEMETRY";
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -117,6 +122,7 @@ export interface PendingDetection {
   make: string | null;
   model: string | null;
   color: string | null;
+  category: string | null;
   synced: number;
   syncedAt: string | null;
   attempts?: number;
@@ -212,6 +218,11 @@ export interface DetectionEvent {
   occurredAt: string;
   confidence: number | null;
   snapshotPath: string | null;
+  country: string | null;
+  make: string | null;
+  model: string | null;
+  color: string | null;
+  category: string | null;
 }
 
 export interface MatchResult {

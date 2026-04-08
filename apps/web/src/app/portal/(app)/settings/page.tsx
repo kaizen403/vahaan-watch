@@ -350,7 +350,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Platform</span>
                   <span className="text-foreground font-mono text-xs">
-                    Vehicle Surveillance v1.0
+                    Vaahan v1.0
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
