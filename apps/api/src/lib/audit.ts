@@ -15,7 +15,7 @@ interface AuditInput {
 export async function writeAuditLog(input: AuditInput) {
   await prisma.auditLog.create({
     data: {
-      actorUserId: input.actorUser?.id,
+      actorUserId: input.actorUser?.role === "device" ? null : input.actorUser?.id,
       actorDeviceType: input.actorDevice?.token.deviceType,
       actorDeviceId: input.actorDevice?.deviceKey,
       action: input.action,

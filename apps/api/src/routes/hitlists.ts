@@ -73,7 +73,7 @@ hitlistRoutes.post("/api/hitlists", async (c) => {
       name,
       description,
       status: "ACTIVE",
-      createdByUserId: user?.id,
+      createdByUserId: user?.role === "device" ? null : user?.id,
     },
   });
 
@@ -234,7 +234,7 @@ hitlistRoutes.post("/api/hitlists/:hitlistId/versions", async (c) => {
       hitlistId,
       versionNumber: nextVersion,
       note,
-      createdByUserId: user?.id,
+      createdByUserId: user?.role === "device" ? null : user?.id,
       entries: {
         create: normalizedEntries,
       },
@@ -505,7 +505,7 @@ hitlistRoutes.post("/api/hitlists/:hitlistId/entries", async (c) => {
       hitlistId,
       versionNumber: nextVersion,
       note: `Added plate ${plate}`,
-      createdByUserId: user?.id,
+      createdByUserId: user?.role === "device" ? null : user?.id,
       entries: {
         create: [...carriedEntries, newEntry],
       },
