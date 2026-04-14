@@ -13,6 +13,7 @@ export const config = {
   logLevel: env.LOG_LEVEL ?? "info",
   port: Number(env.PORT ?? 3003),
   apiBaseUrl: env.API_BASE_URL ?? "http://localhost:3003",
+  cookieDomain: env.COOKIE_DOMAIN,
   databaseUrl: required("DATABASE_URL"),
   betterAuthSecret: required("BETTER_AUTH_SECRET"),
   trustedOrigins: (env.BETTER_AUTH_TRUSTED_ORIGINS ?? "http://localhost:3001")

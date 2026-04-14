@@ -35,7 +35,8 @@ services:
         condition: service_healthy
     environment:
       PORT: 3003
-      API_BASE_URL: http://localhost:3003
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:3003}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       DATABASE_URL: postgresql://postgres:postgres@db:5432/adarecog_phase1?connection_limit=15&pool_timeout=30
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-replace-with-long-random-secret}
       BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-http://localhost:3001}
