@@ -34,10 +34,10 @@ export const sessionContext: MiddlewareHandler<AppBindings> = async (c, next) =>
     if (deviceToken?.workstation) {
       c.set("user", {
         id: `device:${deviceToken.workstation.id}`,
-        email: "",
+        email: `device:${deviceToken.workstation.deviceId}`,
         name: deviceToken.workstation.name,
         username: deviceToken.workstation.address,
-        role: "operator",
+        role: "device",
       });
       c.set("session", null);
       c.set("device", {

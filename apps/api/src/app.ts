@@ -60,8 +60,8 @@ export function createApp() {
   app.route("/", deviceRoutes);
 
   app.use("/api/hitlists/*/assign-all", requireUser, requireRole("admin"));
-  app.use("/api/hitlists", requireUser, requireRole("admin", "operator"));
-  app.use("/api/hitlists/*", requireUser, requireRole("admin", "operator"));
+  app.use("/api/hitlists", requireUser, requireRole("admin", "operator", "device"));
+  app.use("/api/hitlists/*", requireUser, requireRole("admin", "operator", "device"));
   app.route("/", hitlistRoutes);
 
   app.use("/api/match-events", requireUser, requireRole("admin", "operator"));
