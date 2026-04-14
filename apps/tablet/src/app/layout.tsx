@@ -24,7 +24,7 @@ export default function RootLayout({
           content="black-translucent"
         />
       </head>
-      <body className="min-h-screen antialiased" suppressHydrationWarning>{children}</body>
+      <body className="min-h-screen antialiased">{children}</body>
     </html>
   );
 }
