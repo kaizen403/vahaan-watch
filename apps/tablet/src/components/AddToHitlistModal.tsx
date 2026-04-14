@@ -127,25 +127,30 @@ export function AddToHitlistModal({
   if (!open) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Add ${plate} to hitlist`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm touch-manipulation"
-      tabIndex={-1}
-      onClick={(e) => {
-        if (contentRef.current && !contentRef.current.contains(e.target as Node)) {
-          onClose();
-        }
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
-      }}
-    >
+    <div className="fixed inset-0 z-50">
       <div
-        ref={contentRef}
-        className="relative glass-heavy rounded-2xl p-5 w-[340px] max-w-[calc(100vw-2rem)] shadow-2xl border border-border/60"
+        className="absolute inset-0 bg-background/70 backdrop-blur-sm pointer-events-none"
+        aria-hidden="true"
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Add ${plate} to hitlist`}
+        className="absolute inset-0 flex items-center justify-center touch-manipulation"
+        tabIndex={-1}
+        onClick={(e) => {
+          if (contentRef.current && !contentRef.current.contains(e.target as Node)) {
+            onClose();
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
       >
+        <div
+          ref={contentRef}
+          className="relative glass-heavy rounded-2xl p-5 w-[340px] max-w-[calc(100vw-2rem)] shadow-2xl border border-border/60"
+        >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
@@ -286,6 +291,7 @@ export function AddToHitlistModal({
           </>
         )}
       </div>
+    </div>
     </div>
   );
 }
