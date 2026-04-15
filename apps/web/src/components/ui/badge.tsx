@@ -25,9 +25,9 @@ function Badge({
   className,
   variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof badgeVariants>) {
+}: React.HTMLAttributes<HTMLSpanElement> & VariantProps<typeof badgeVariants>) {
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <span className={cn(badgeVariants({ variant }), className)} {...props} />
   );
 }
 
