@@ -202,7 +202,15 @@ export function applySchemaMigrations(db: Database.Database): void {
 
   const applyMigration = db.transaction((migration: SchemaMigration) => {
     for (const statement of migration.statements) {
-      db.exec(statement);
+      try {
+        db.exec(statement);
+      } catch (err) {
+        // Ignore "duplicate column name" — base schema already includes the column
+        if (err instanceof Error && err.message.includes("duplicate column name")) {
+          continue;
+        }
+        throw err;
+      }
     }
 
     db.prepare(

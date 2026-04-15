@@ -7,6 +7,8 @@ x-workspace-service: &workspace-service
     dockerfile: Dockerfile.workspace
   working_dir: /workspace
   restart: unless-stopped
+  volumes:
+    - ./.env:/workspace/.env:ro
 
 services:
   db:
