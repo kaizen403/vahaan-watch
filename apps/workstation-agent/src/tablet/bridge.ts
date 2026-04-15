@@ -19,8 +19,13 @@ export class TabletBridge {
   private server: WebSocketServer | null = null;
   private pingTimer: NodeJS.Timeout | null = null;
   private scanningActive = false;
+  private healthProvider: (() => object) | null = null;
 
   public constructor(private readonly config: Pick<WorkstationConfig, "tabletWsPort">) {}
+
+  public setHealthProvider(fn: () => object): void {
+    this.healthProvider = fn;
+  }
 
   public async start(): Promise<void> {
     if (this.server) {
@@ -147,6 +152,12 @@ export class TabletBridge {
             client.clientRole = msg.role;
             logger.debug("client identified", { remoteAddress, role: msg.role });
             this.broadcast({ type: "status", data: { connectedTablets: this.tabletCount() } });
+            if (msg.role === "tablet" && this.healthProvider) {
+              try {
+                client.send(JSON.stringify({ type: "health", data: this.healthProvider() }));
+              } catch {
+              }
+            }
           } else if (msg.type === "scanStart") {
             this.scanningActive = true;
             logger.info("scan session started");
