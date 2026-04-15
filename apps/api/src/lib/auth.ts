@@ -19,6 +19,10 @@ export const auth = betterAuth({
       enabled: true,
       domain: config.cookieDomain,
     },
+    defaultCookieAttributes: {
+      sameSite: "none",
+      secure: true,
+    },
   },
   user: {
     additionalFields: {
