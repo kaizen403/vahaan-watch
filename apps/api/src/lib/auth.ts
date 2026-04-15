@@ -14,12 +14,16 @@ export const auth = betterAuth({
   secret: config.betterAuthSecret,
   basePath: "/api/auth",
   trustedOrigins: config.trustedOrigins,
-  advanced: {
-    crossSubDomainCookies: {
-      enabled: true,
-      domain: config.cookieDomain,
-    },
-  },
+  ...(config.cookieDomain
+    ? {
+        advanced: {
+          crossSubDomainCookies: {
+            enabled: true,
+            domain: config.cookieDomain,
+          },
+        },
+      }
+    : {}),
   user: {
     additionalFields: {
       role: {

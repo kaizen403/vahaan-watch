@@ -414,6 +414,7 @@ export async function main(): Promise<void> {
   const heartbeatService = new HeartbeatService(api, db, config);
   const ttsAnnouncer = new TtsAnnouncer(config);
   const tabletBridge = new TabletBridge(config);
+  tabletBridge.setHealthProvider(() => heartbeatService.getHealthReport());
   const alerter = new Alerter(tabletBridge, ttsAnnouncer);
 
   const camera = runtimeModules

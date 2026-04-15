@@ -1,0 +1,34 @@
+FROM node:24-bookworm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PNPM_HOME=/pnpm
+ENV PNPM_STORE_DIR=/pnpm/store
+ENV PATH=/pnpm:$PATH
+
+RUN corepack enable
+
+WORKDIR /workspace
+
+# Copy workspace manifests so pnpm can resolve the full workspace graph
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY apps/tablet/package.json apps/tablet/package.json
+COPY apps/ws-server/package.json apps/ws-server/package.json
+COPY apps/workstation-agent/package.json apps/workstation-agent/package.json
+
+# Install only workstation-agent dependencies
+RUN pnpm install --frozen-lockfile --filter @adarecog/workstation-agent
+
+# Copy workstation-agent source (includes eng.traineddata for tesseract.js)
+COPY apps/workstation-agent/ apps/workstation-agent/
+
+WORKDIR /workspace/apps/workstation-agent
+
+# Compile TypeScript
+RUN pnpm run build
+
+CMD ["node", "dist/main.js"]

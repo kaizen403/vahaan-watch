@@ -7,6 +7,8 @@ x-workspace-service: &workspace-service
     dockerfile: Dockerfile.workspace
   working_dir: /workspace
   restart: unless-stopped
+  volumes:
+    - ./.env:/workspace/.env:ro
 
 services:
   db:
@@ -120,5 +122,49 @@ services:
     ports:
       - "3002:3002"
 
+  workstation:
+    build:
+      context: .
+      dockerfile: Dockerfile.workstation
+    image: adarecog-workstation:dev
+    restart: unless-stopped
+    profiles: ["services"]
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      CENTRAL_API_URL: ${CENTRAL_API_URL:-https://api.harsha16x.in}
+      DEVICE_PROVISIONING_TOKEN: ${DEVICE_PROVISIONING_TOKEN:-dev-provisioning-token-local}
+      DEVICE_ID: ${WORKSTATION_DEVICE_ID:-ws-ec2-001}
+      DEVICE_NAME: ${WORKSTATION_DEVICE_NAME:-EC2 Workstation}
+      CAMERA_SOURCE: ${WORKSTATION_CAMERA_SOURCE:-}
+      CAMERA_FPS: ${WORKSTATION_CAMERA_FPS:-2}
+      OCR_PROVIDER: ${WORKSTATION_OCR_PROVIDER:-carmen}
+      OCR_PREPROCESS: "true"
+      OCR_MIN_CONFIDENCE: "0.55"
+      OCR_WORKER_COUNT: "2"
+      CARMEN_API_KEY: ${CARMEN_API_KEY:-}
+      CARMEN_REGION: ${CARMEN_REGION:-IND}
+      CARMEN_CLOUD_API_BASE: ${CARMEN_CLOUD_API_BASE:-https://ap-southeast-1.api.carmencloud.com/vehicle}
+      CARMEN_CLOUD_TIMEOUT_MS: ${CARMEN_CLOUD_TIMEOUT_MS:-10000}
+      CARMEN_CLOUD_MAX_CONCURRENT: ${CARMEN_CLOUD_MAX_CONCURRENT:-3}
+      TABLET_WS_PORT: "8089"
+      TTS_ENABLED: "false"
+      FUZZY_MATCH_ENABLED: ${WORKSTATION_FUZZY_MATCH:-false}
+      DB_PATH: /data/workstation.db
+      SNAPSHOT_DIR: /data/snapshots
+      SNAPSHOT_RETENTION_DAYS: "30"
+      HITLIST_SYNC_INTERVAL_MS: "60000"
+      HEARTBEAT_INTERVAL_MS: "30000"
+      OUTBOX_FLUSH_INTERVAL_MS: "15000"
+      OUTBOX_BATCH_SIZE: "20"
+      OUTBOX_MAX_RETRIES: "10"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8089:8089"
+    volumes:
+      - workstation-data:/data
+
 volumes:
   adarecog-postgres-data:
+  workstation-data:

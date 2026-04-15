@@ -234,6 +234,17 @@ workstationRoutes.post("/api/workstations/tablet-pair", async (c) => {
   if (!valid) return fail(c, 401, "Invalid credentials.");
 
   const issued = issueDeviceToken();
+
+  // Revoke all existing tablet-pair tokens for this workstation
+  await prisma.deviceToken.updateMany({
+    where: {
+      workstationId: ws.id,
+      label: "tablet-pair",
+      revokedAt: null,
+    },
+    data: { revokedAt: new Date() },
+  });
+
   await prisma.deviceToken.create({
     data: {
       tokenHash: issued.tokenHash,

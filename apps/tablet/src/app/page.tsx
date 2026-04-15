@@ -13,8 +13,17 @@ import { useWorkstationSocket } from "@/hooks/useWorkstationSocket";
 
 const STORAGE_KEY = "tablet_ws_url";
 const WORKSTATION_KEY = "tablet_workstation";
+const WORKSTATION_ID_KEY = "tablet_workstation_id";
+const DEVICE_TOKEN_KEY = "tablet_device_token";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3003";
 const BRIDGE_BASE = process.env.NEXT_PUBLIC_BRIDGE_URL ?? "";
+
+function clearStoredSession() {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(WORKSTATION_KEY);
+  localStorage.removeItem(WORKSTATION_ID_KEY);
+  localStorage.removeItem(DEVICE_TOKEN_KEY);
+}
 
 type ConnectionPhase = "idle" | "connecting" | "connected" | "failed";
 
@@ -65,10 +74,7 @@ export default function PairingPage() {
         setWsUrl(null);
         setPhase("failed");
         setPairError("Connection timed out. Please try again.");
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(WORKSTATION_KEY);
-        localStorage.removeItem("tablet_workstation_id");
-        localStorage.removeItem("tablet_device_token");
+        clearStoredSession();
       }
     }, 5000);
     return () => clearTimeout(timeout);
@@ -83,10 +89,7 @@ export default function PairingPage() {
         setPairError(
           "Connected to bridge but workstation is not responding. Check that the workstation agent is running.",
         );
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(WORKSTATION_KEY);
-        localStorage.removeItem("tablet_workstation_id");
-        localStorage.removeItem("tablet_device_token");
+        clearStoredSession();
       }
     }, 8000);
     return () => clearTimeout(timeout);
@@ -143,7 +146,7 @@ export default function PairingPage() {
       const { workstation, wsPort, token } = json.data;
       const url = BRIDGE_BASE || `ws://localhost:${wsPort}`;
       localStorage.setItem(STORAGE_KEY, url);
-      if (token) localStorage.setItem("tablet_device_token", token);
+      if (token) localStorage.setItem(DEVICE_TOKEN_KEY, token);
       localStorage.setItem(
         WORKSTATION_KEY,
         JSON.stringify({
@@ -151,7 +154,7 @@ export default function PairingPage() {
           name: workstation.name,
         }),
       );
-      localStorage.setItem("tablet_workstation_id", workstation.id);
+      localStorage.setItem(WORKSTATION_ID_KEY, workstation.id);
       setWsUrl(url);
       setPhase("connecting");
     } catch {
@@ -167,10 +170,7 @@ export default function PairingPage() {
     setPhase("idle");
     setPairError(null);
     setPairing(false);
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(WORKSTATION_KEY);
-    localStorage.removeItem("tablet_workstation_id");
-    localStorage.removeItem("tablet_device_token");
+    clearStoredSession();
   }
 
   const isConnecting = pairing || phase === "connecting";

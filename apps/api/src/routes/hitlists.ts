@@ -73,7 +73,7 @@ hitlistRoutes.post("/api/hitlists", async (c) => {
       name,
       description,
       status: "ACTIVE",
-      createdByUserId: user?.id,
+      createdByUserId: user?.role === "device" ? null : user?.id,
     },
   });
 
@@ -234,7 +234,7 @@ hitlistRoutes.post("/api/hitlists/:hitlistId/versions", async (c) => {
       hitlistId,
       versionNumber: nextVersion,
       note,
-      createdByUserId: user?.id,
+      createdByUserId: user?.role === "device" ? null : user?.id,
       entries: {
         create: normalizedEntries,
       },
@@ -272,6 +272,7 @@ hitlistRoutes.post("/api/hitlists/:hitlistId/versions", async (c) => {
 
 hitlistRoutes.post("/api/hitlists/:hitlistId/assign", async (c) => {
   const user = c.get("user");
+  if (user?.role === "device") return fail(c, 403, "Device tokens cannot perform this action.");
   const hitlistId = c.req.param("hitlistId");
   const body = await c.req.json();
   const workstationIds: unknown = body.workstationIds;
@@ -322,6 +323,7 @@ hitlistRoutes.delete(
   "/api/hitlists/:hitlistId/assign/:workstationId",
   async (c) => {
     const user = c.get("user");
+    if (user?.role === "device") return fail(c, 403, "Device tokens cannot perform this action.");
     const hitlistId = c.req.param("hitlistId");
     const workstationId = c.req.param("workstationId");
 
@@ -359,6 +361,7 @@ hitlistRoutes.get("/api/hitlists/:hitlistId/assignments", async (c) => {
 
 hitlistRoutes.post("/api/hitlists/:hitlistId/assign-all", async (c) => {
   const user = c.get("user");
+  if (user?.role === "device") return fail(c, 403, "Device tokens cannot perform this action.");
   const hitlistId = c.req.param("hitlistId");
 
   const hitlist = await prisma.hitlist.findUnique({ where: { id: hitlistId } });
@@ -502,7 +505,7 @@ hitlistRoutes.post("/api/hitlists/:hitlistId/entries", async (c) => {
       hitlistId,
       versionNumber: nextVersion,
       note: `Added plate ${plate}`,
-      createdByUserId: user?.id,
+      createdByUserId: user?.role === "device" ? null : user?.id,
       entries: {
         create: [...carriedEntries, newEntry],
       },

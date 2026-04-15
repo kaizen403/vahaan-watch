@@ -18,6 +18,7 @@ function createDetection(id: string): PendingDetection {
     make: null,
     model: null,
     color: null,
+    category: null,
     synced: 0,
     syncedAt: null,
     createdAt: "2026-04-06T10:00:00.000Z",
